@@ -1,0 +1,110 @@
+@import "tailwindcss";
+@import "./animations.css";
+
+@theme {
+  /* CoreFi-inspired Dark Theme */
+  --color-mubble-bg: #0a0a0a;
+  --color-mubble-surface: #111111;
+  --color-mubble-surface-elevated: #1a1a1a;
+  --color-mubble-surface-hover: #222222;
+  --color-mubble-border: #2a2a2a;
+  --color-mubble-border-subtle: #1f1f1f;
+  
+  /* Primary - Clean White/Light */
+  --color-mubble-primary: #ffffff;
+  --color-mubble-primary-hover: #e5e5e5;
+  --color-mubble-primary-text: #0a0a0a;
+  
+  /* Text colors */
+  --color-mubble-text: #ffffff;
+  --color-mubble-text-secondary: #a3a3a3;
+  --color-mubble-text-muted: #737373;
+  
+  /* Accent - Subtle purple/blue for crypto feel */
+  --color-mubble-accent: #8b5cf6;
+  --color-mubble-accent-hover: #a78bfa;
+  --color-mubble-accent-subtle: rgba(139, 92, 246, 0.1);
+  
+  /* Status colors */
+  --color-mubble-success: #22c55e;
+  --color-mubble-error: #ef4444;
+  --color-mubble-warning: #f59e0b;
+  
+  /* Gradient backgrounds */
+  --gradient-card: linear-gradient(180deg, #111111 0%, #0d0d0d 100%);
+  --gradient-hero: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+  --gradient-glow: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+}
+
+/* Base styles */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+/* Custom scrollbar - minimal dark */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Drag region for custom title bar */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Selection */
+::selection {
+  background: rgba(139, 92, 246, 0.3);
+  color: white;
+}
+
+/* Input autofill fix for dark mode */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0px 1000px #111111 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Gradient card utility */
+.card-gradient {
+  background: linear-gradient(180deg, #111111 0%, #0d0d0d 100%);
+}
+
+/* Glow effect */
+.glow-accent {
+  box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(17, 17, 17, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

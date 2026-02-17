@@ -1,0 +1,21 @@
+{
+  "name": "@mubble/storage",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@mubble/shared": "workspace:*",
+    "better-sqlite3": "^11.8.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^25.2.3",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.7.0"
+  }
+}

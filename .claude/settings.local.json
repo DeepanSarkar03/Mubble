@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where:*)",
+      "Bash(node --version:*)",
+      "Bash(where npm)",
+      "Bash(npm --version:*)",
+      "Bash(cargo:*)",
+      "Bash(del \"C:\\\\Users\\\\astam\\\\Mubble\\\\nul\")",
+      "Bash(npm install:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx turbo run clean:*)",
+      "Bash(git config:*)",
+      "Bash(git init)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
