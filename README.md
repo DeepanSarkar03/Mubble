@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/logo.png" alt="Mubble Logo" width="120" height="120" />
+</p>
+
+<p align="center">
   <h1 align="center">Mubble</h1>
   <p align="center">Open-source voice-to-text desktop app with AI-powered editing</p>
   <p align="center">
