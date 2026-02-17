@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "lint": "echo 'No lint configured'",
+    "test": "echo 'No tests configured'",
     "preview": "electron-vite preview",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",

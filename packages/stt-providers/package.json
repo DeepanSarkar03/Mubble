@@ -6,6 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "lint": "echo 'No lint configured'",
+    "test": "echo 'No tests configured'",
     "clean": "rimraf dist"
   },
   "dependencies": {
