@@ -11,6 +11,8 @@
     "preview": "electron-vite preview",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
+    "dist:win:copy": "electron-builder --win && node ../../scripts/copy-installer.js",
+    "dist:mac:copy": "electron-builder --mac && node ../../scripts/copy-installer.js",
     "clean": "rimraf dist out"
   },
   "dependencies": {

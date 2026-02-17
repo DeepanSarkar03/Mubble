@@ -10,7 +10,9 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "dist:win": "pnpm run build && cd apps/desktop && pnpm run dist:win:copy",
+    "dist:mac": "pnpm run build && cd apps/desktop && pnpm run dist:mac:copy"
   },
   "devDependencies": {
     "turbo": "^2.4.0",
