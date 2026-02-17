@@ -8,11 +8,12 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:skip-native": "node scripts/skip-native-build.js && cd apps/desktop && pnpm run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "dist:win": "pnpm run build && cd apps/desktop && pnpm run dist:win:copy",
-    "dist:mac": "pnpm run build && cd apps/desktop && pnpm run dist:mac:copy"
+    "dist:win": "pnpm run build:skip-native && cd apps/desktop && pnpm run dist:win:copy",
+    "dist:mac": "pnpm run build:skip-native && cd apps/desktop && pnpm run dist:mac:copy"
   },
   "devDependencies": {
     "turbo": "^2.4.0",
@@ -21,9 +22,11 @@
   "packageManager": "pnpm@10.30.0",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "electron",
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "better-sqlite3": "11.5.0"
+    }
   }
 }

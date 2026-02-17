@@ -11,7 +11,9 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@mubble/shared": "workspace:*",
+    "@mubble/shared": "workspace:*"
+  },
+  "optionalDependencies": {
     "better-sqlite3": "^11.8.0"
   },
   "devDependencies": {
