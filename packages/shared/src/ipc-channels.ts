@@ -8,6 +8,7 @@ export const IPC = {
   // Dictation
   DICTATION_START: 'dictation:start',
   DICTATION_STOP: 'dictation:stop',
+  DICTATION_GET_STATE: 'dictation:getState',
   DICTATION_STATE_CHANGED: 'dictation:state-changed',
   DICTATION_TRANSCRIPT: 'dictation:transcript',
 
@@ -45,10 +46,12 @@ export const IPC = {
   HISTORY_DELETE: 'history:delete',
   HISTORY_CLEAR: 'history:clear',
   HISTORY_ADD: 'history:add',
+  HISTORY_CHANGED: 'history:changed',
 
   // Analytics
   ANALYTICS_GET_DAILY: 'analytics:getDaily',
   ANALYTICS_GET_SUMMARY: 'analytics:getSummary',
+  ANALYTICS_UPDATE: 'analytics:update',
 
   // Platform
   PLATFORM_GET_OS: 'platform:getOS',

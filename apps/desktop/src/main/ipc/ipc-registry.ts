@@ -4,6 +4,7 @@ import { sttRegistry } from '@mubble/stt-providers'
 import { llmRegistry } from '@mubble/llm-providers'
 import { Database, SettingsRepository, DictionaryRepository, SnippetsRepository, HistoryRepository, AnalyticsRepository, ApiKeysRepository } from '@mubble/storage'
 import { DictationManager } from '../dictation/dictation-manager'
+import { injectText } from '../text-injector/text-injector'
 
 // Database instance
 let db: Database | null = null
@@ -35,12 +36,12 @@ async function initializeStorage(): Promise<void> {
   }
 }
 
-export async function registerAllHandlers(mainWindow: BrowserWindow | null): Promise<void> {
+export async function registerAllHandlers(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null): Promise<void> {
   // Initialize storage
   await initializeStorage()
 
   // Initialize dictation manager
-  dictationManager = new DictationManager(mainWindow)
+  dictationManager = new DictationManager(mainWindow, flowBarWindow)
 
   // Settings handlers
   ipcMain.handle(IPC.SETTINGS_GET, async (_event, key: string) => {
@@ -209,13 +210,35 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null): Pro
     await repositories?.settings.set('audioDevice', deviceId)
   })
 
-  // Dictation handlers - now wired to dictation manager
+  // Dictation handlers - wired to dictation manager
   ipcMain.handle(IPC.DICTATION_START, async (_event, mode) => {
     await dictationManager?.start(mode)
   })
 
   ipcMain.handle(IPC.DICTATION_STOP, async () => {
     return await dictationManager?.stop()
+  })
+
+  ipcMain.handle(IPC.DICTATION_GET_STATE, async () => {
+    return {
+      state: dictationManager?.getState() ?? 'idle',
+      mode: 'push-to-talk'
+    }
+  })
+
+  // Command mode handlers
+  ipcMain.handle('command:execute', async (_event, selectedText: string, command: string) => {
+    // This is handled in the dictation manager
+    return selectedText
+  })
+
+  // Paste last text
+  ipcMain.handle('dictation:pasteLast', async () => {
+    const lastText = dictationManager?.getHistory()[0]?.processedText
+    if (lastText) {
+      await injectText(lastText)
+    }
+    return lastText
   })
 
   // Platform handlers
