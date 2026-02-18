@@ -76,20 +76,50 @@ Mubble is an open-source desktop application that lets you dictate text into any
 
 ## Installation
 
-### Download
+### Download Source Code (v0.1.0)
 
-Download the latest release for your platform from the [Releases](https://github.com/YOUR_USERNAME/mubble/releases) page.
+Download the source code for the latest release from the [Releases](https://github.com/DeepanSarkar03/Mubble/releases) page:
 
-- **Windows** — `.exe` installer (NSIS)
-- **macOS** — `.dmg` disk image
+- **Source code (zip)** or **Source code (tar.gz)**
+
+### Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/DeepanSarkar03/Mubble.git
+cd Mubble
+
+# Install dependencies
+pnpm install
+
+# Build packages
+pnpm run build
+
+# Run in development mode
+pnpm run dev
+
+# Build installers (requires Build Tools for Visual Studio on Windows, Xcode on macOS)
+cd apps/desktop
+pnpm run dist:win   # Windows
+pnpm run dist:mac   # macOS
+```
 
 ### First Run Setup
 
-1. Launch Mubble
-2. Go to **Settings > STT Providers** and enter your API key for at least one provider
-3. Go to **Settings > LLM Providers** and enter your API key (optional, for text cleanup)
-4. Go to **Settings > Microphone** and select your input device
-5. Test it out! Press `Ctrl+Shift+Space` (default) to start dictating
+1. **Configure STT Provider** — Go to **Settings > STT Providers**
+   - Select a provider (e.g., Groq is free with fast inference)
+   - Enter your API key
+   - Click "Validate"
+
+2. **(Optional) Configure LLM** — Go to **Settings > LLM Providers**
+   - Select a provider for text cleanup (e.g., Groq)
+   - Enter API key and validate
+
+3. **Select Microphone** — Go to **Settings > Microphone**
+   - Choose your input device
+
+4. **Start Dictating** — Press `Ctrl+Shift+Space` (default shortcut)
+   - Or customize in **Settings > Shortcuts**
 
 ## Development
 
