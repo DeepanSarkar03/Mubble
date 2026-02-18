@@ -26,9 +26,8 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
-# Windows reserved names
-nul
-prn
-con
-lpt*
-com*
+# Windows reserved filenames
+/nul
+/con
+/prn
+/aux
