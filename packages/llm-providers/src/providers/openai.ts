@@ -3,11 +3,24 @@ import type { LLMProvider, LLMProviderConfig, LLMMessage, LLMResult, LLMValidati
 export class OpenAIProvider implements LLMProvider {
   readonly id = 'openai'
   readonly name = 'OpenAI'
-  readonly description = 'GPT-4o and GPT-4o-mini for text cleanup and commands'
+  readonly description = 'OpenAI GPT models — latest and most capable models with cheapest options'
   readonly requiresApiKey = true
   readonly website = 'https://platform.openai.com'
   readonly defaultModel = 'gpt-4o-mini'
-  readonly models = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+  readonly models = [
+    // ── Latest flagship ──────────────────────────────────────────────────
+    'gpt-4.1',               // GPT-4.1 — most capable, best instruction following
+    'gpt-4.1-mini',          // GPT-4.1 Mini — fast + affordable
+    'gpt-4.1-nano',          // GPT-4.1 Nano — cheapest OpenAI model, ideal for quick cleanup
+    // ── o-series reasoning ───────────────────────────────────────────────
+    'o4-mini',               // o4-mini — fast reasoning at low cost
+    'o3-mini',               // o3-mini — efficient reasoning
+    // ── GPT-4o family ────────────────────────────────────────────────────
+    'gpt-4o',                // GPT-4o — multimodal flagship
+    'gpt-4o-mini',           // GPT-4o Mini — best price/performance for voice cleanup
+    // ── Legacy (widely used) ─────────────────────────────────────────────
+    'gpt-3.5-turbo',         // GPT-3.5 Turbo — cheapest legacy option
+  ]
 
   async validate(config: LLMProviderConfig): Promise<LLMValidationResult> {
     if (!config.apiKey) return { valid: false, error: 'API key is required' }

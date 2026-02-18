@@ -3,15 +3,23 @@ import type { LLMProvider, LLMProviderConfig, LLMMessage, LLMResult, LLMValidati
 export class AnthropicProvider implements LLMProvider {
   readonly id = 'anthropic'
   readonly name = 'Anthropic'
-  readonly description = 'Claude models for intelligent text cleanup and commands'
+  readonly description = 'Anthropic Claude — safest, most intelligent models with a wide range of options'
   readonly requiresApiKey = true
   readonly website = 'https://console.anthropic.com'
-  readonly defaultModel = 'claude-sonnet-4-20250514'
+  readonly defaultModel = 'claude-3-5-haiku-20241022'
   readonly models = [
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
-    'claude-3-5-haiku-20241022',
-    'claude-3-5-sonnet-20241022',
+    // ── Claude 4 (latest) ─────────────────────────────────────────────────
+    'claude-opus-4-5',              // Claude Opus 4.5 — most intelligent, best reasoning
+    'claude-sonnet-4-5',            // Claude Sonnet 4.5 — excellent balance of speed & quality
+    'claude-opus-4-20250514',       // Claude Opus 4 — flagship, best for complex commands
+    'claude-sonnet-4-20250514',     // Claude Sonnet 4 — fast and capable
+    // ── Claude 3.7 ────────────────────────────────────────────────────────
+    'claude-3-7-sonnet-20250219',   // Claude 3.7 Sonnet — hybrid reasoning model
+    // ── Claude 3.5 ────────────────────────────────────────────────────────
+    'claude-3-5-sonnet-20241022',   // Claude 3.5 Sonnet — strong for voice cleanup
+    'claude-3-5-haiku-20241022',    // Claude 3.5 Haiku — cheapest Claude, fastest response
+    // ── Claude 3 ─────────────────────────────────────────────────────────
+    'claude-3-haiku-20240307',      // Claude 3 Haiku — most affordable option
   ]
 
   async validate(config: LLMProviderConfig): Promise<LLMValidationResult> {

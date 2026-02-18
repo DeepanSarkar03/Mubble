@@ -3,15 +3,27 @@ import type { LLMProvider, LLMProviderConfig, LLMMessage, LLMResult, LLMValidati
 export class GroqLLMProvider implements LLMProvider {
   readonly id = 'groq'
   readonly name = 'Groq'
-  readonly description = 'Ultra-fast LLM inference on Groq LPU hardware'
+  readonly description = 'Groq LPU — world\'s fastest inference, great free tier for voice cleanup'
   readonly requiresApiKey = true
-  readonly website = 'https://groq.com'
+  readonly website = 'https://console.groq.com'
   readonly defaultModel = 'llama-3.3-70b-versatile'
   readonly models = [
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',
-    'mixtral-8x7b-32768',
-    'gemma2-9b-it',
+    // ── Llama 4 (latest Meta) ─────────────────────────────────────────────
+    'meta-llama/llama-4-maverick-17b-128e-instruct', // Llama 4 Maverick — MoE, best on Groq
+    'meta-llama/llama-4-scout-17b-16e-instruct',     // Llama 4 Scout — fast & efficient
+    // ── Llama 3.3 / 3.1 ──────────────────────────────────────────────────
+    'llama-3.3-70b-versatile',    // Llama 3.3 70B — recommended all-rounder (free tier)
+    'llama-3.1-70b-versatile',    // Llama 3.1 70B — reliable 70B model
+    'llama-3.1-8b-instant',       // Llama 3.1 8B — fastest, cheapest (great for cleanup)
+    // ── Qwen ─────────────────────────────────────────────────────────────
+    'qwen-qwq-32b',               // Qwen QwQ 32B — strong reasoning model
+    'qwen-2.5-72b-instruct',      // Qwen 2.5 72B — multilingual, very capable
+    'qwen-2.5-coder-32b-instruct',// Qwen 2.5 Coder — for coding-related dictation
+    // ── Deepseek ─────────────────────────────────────────────────────────
+    'deepseek-r1-distill-llama-70b', // DeepSeek R1 70B — chain-of-thought reasoning
+    // ── Gemma / Mistral ───────────────────────────────────────────────────
+    'gemma2-9b-it',               // Gemma2 9B — Google's efficient small model
+    'mixtral-8x7b-32768',         // Mixtral 8x7B — long context (32k tokens)
   ]
 
   async validate(config: LLMProviderConfig): Promise<LLMValidationResult> {

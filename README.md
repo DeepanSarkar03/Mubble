@@ -67,12 +67,12 @@ Mubble is an open-source desktop application that lets you dictate text into any
 
 ### LLM Providers (4 Providers)
 
-| Provider | Models |
-|----------|--------|
-| OpenAI | GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-3.5-turbo |
-| Anthropic | Claude Sonnet 4, Claude Opus 4, Claude 3.5 Haiku/Sonnet |
-| Google Gemini | Gemini 2.0 Flash, Gemini 1.5 Flash/Pro |
-| Groq | Llama 3.3 70B, Llama 3.1 8B, Mixtral 8x7B, Gemma2 9B |
+| Provider | Latest Models | Cheapest Option |
+|----------|--------------|-----------------|
+| OpenAI | GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, o4-mini, o3-mini, GPT-4o, GPT-4o-mini | GPT-4.1 Nano |
+| Anthropic | Claude Opus 4.5, Claude Sonnet 4.5, Claude Opus/Sonnet 4, Claude 3.7 Sonnet, Claude 3.5 Sonnet/Haiku | Claude 3 Haiku |
+| Google Gemini | Gemini 2.5 Pro/Flash, Gemini 2.0 Flash, Gemini 2.0 Flash-Lite, Gemini 1.5 Flash-8B | Gemini 2.0 Flash-Lite |
+| Groq | Llama 4 Maverick/Scout, Llama 3.3/3.1 70B, Qwen 2.5 72B, DeepSeek R1 70B, Gemma2 9B | Llama 3.1 8B Instant (free tier) |
 
 ## Installation
 

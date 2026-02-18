@@ -3,11 +3,22 @@ import type { LLMProvider, LLMProviderConfig, LLMMessage, LLMResult, LLMValidati
 export class GoogleGeminiProvider implements LLMProvider {
   readonly id = 'google-gemini'
   readonly name = 'Google Gemini'
-  readonly description = 'Google Gemini models for text processing'
+  readonly description = 'Google Gemini — multimodal models from ultra-fast Flash to powerful Pro'
   readonly requiresApiKey = true
   readonly website = 'https://ai.google.dev'
   readonly defaultModel = 'gemini-2.0-flash'
-  readonly models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro']
+  readonly models = [
+    // ── Gemini 2.5 (latest) ───────────────────────────────────────────────
+    'gemini-2.5-pro-preview-05-06',  // Gemini 2.5 Pro — most intelligent, deep thinking
+    'gemini-2.5-flash-preview-05-20', // Gemini 2.5 Flash — best price/performance
+    // ── Gemini 2.0 ────────────────────────────────────────────────────────
+    'gemini-2.0-flash',              // Gemini 2.0 Flash — fast & affordable (recommended)
+    'gemini-2.0-flash-lite',         // Gemini 2.0 Flash-Lite — cheapest, lowest latency
+    // ── Gemini 1.5 ────────────────────────────────────────────────────────
+    'gemini-1.5-pro',                // Gemini 1.5 Pro — long context (2M tokens)
+    'gemini-1.5-flash',              // Gemini 1.5 Flash — fast and versatile
+    'gemini-1.5-flash-8b',           // Gemini 1.5 Flash-8B — smallest & cheapest
+  ]
 
   async validate(config: LLMProviderConfig): Promise<LLMValidationResult> {
     if (!config.apiKey) return { valid: false, error: 'API key is required' }
