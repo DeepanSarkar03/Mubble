@@ -44,8 +44,11 @@ jobs:
         run: |
           cd apps/desktop
           npm config set cache C:\Users\runneradmin\.npm
-          npx electron-builder --win --dir -c.win.certificateFile="" 2>&1 | Select-String -Pattern "(packaging|completed|error)" | Write-Host
-          if (-not (Test-Path "..\..\release\win-unpacked\Mubble.exe")) { exit 1 }
+          npx electron-builder --win --dir
+          if (-not (Test-Path "..\..\release\win-unpacked\Mubble.exe")) { 
+            Write-Host "ERROR: Mubble.exe not found!"
+            exit 1 
+          }
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

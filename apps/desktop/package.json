@@ -1,6 +1,8 @@
 {
   "name": "@mubble/desktop",
   "version": "0.1.0",
+  "description": "Mubble - AI-powered voice-to-text desktop app",
+  "author": "Deepan Sarkar <deepansarkar@example.com>",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
