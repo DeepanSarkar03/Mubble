@@ -18,7 +18,7 @@
 
 Mubble is an open-source desktop application that lets you dictate text into any application on your computer. It uses speech-to-text (STT) providers to transcribe your voice and large language models (LLMs) to clean up and format the output. Think of it as your personal AI-powered dictation assistant.
 
-**You bring your own API keys** — Mubble supports 14 STT providers and 4 LLM providers, so you can choose the one that fits your budget and needs.
+**You bring your own API keys** — Mubble supports 14 STT providers and 17 LLM providers, so you can choose the one that fits your budget and needs.
 
 ## Features
 
@@ -65,14 +65,27 @@ Mubble is an open-source desktop application that lets you dictate text into any
 | Gladia | Yes | No | Enterprise-grade with streaming |
 | Local Whisper | No | Yes | Runs whisper.cpp locally, no API key needed |
 
-### LLM Providers (4 Providers)
+### LLM Providers (17 Providers)
 
-| Provider | Latest Models | Cheapest Option |
-|----------|--------------|-----------------|
-| OpenAI | GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, o4-mini, o3-mini, GPT-4o, GPT-4o-mini | GPT-4.1 Nano |
-| Anthropic | Claude Opus 4.5, Claude Sonnet 4.5, Claude Opus/Sonnet 4, Claude 3.7 Sonnet, Claude 3.5 Sonnet/Haiku | Claude 3 Haiku |
-| Google Gemini | Gemini 2.5 Pro/Flash, Gemini 2.0 Flash, Gemini 2.0 Flash-Lite, Gemini 1.5 Flash-8B | Gemini 2.0 Flash-Lite |
-| Groq | Llama 4 Maverick/Scout, Llama 3.3/3.1 70B, Qwen 2.5 72B, DeepSeek R1 70B, Gemma2 9B | Llama 3.1 8B Instant (free tier) |
+| Provider | Models | Cheapest Model | API Key |
+|----------|--------|----------------|---------|
+| OpenAI | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o4-mini, o3-mini, gpt-4o, gpt-4o-mini, gpt-3.5-turbo | gpt-3.5-turbo | Yes |
+| Anthropic | claude-opus-4-5, claude-sonnet-4-5, claude-3-5-sonnet, claude-3-5-haiku, claude-3-haiku | claude-3-haiku-20240307 | Yes |
+| Google Gemini | gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash, gemini-2.0-flash-lite, gemini-1.5-pro/flash | gemini-2.0-flash-lite | Yes |
+| Groq | llama-4-maverick, llama-4-scout, llama-3.3-70b, deepseek-r1-distill, qwen-qwq-32b | llama-3.1-8b-instant | Yes |
+| Mistral AI | magistral-medium/small, mistral-large/medium/small, codestral, open-mistral-nemo, pixtral | open-mistral-nemo | Yes |
+| Cohere | command-a-03-2025, command-r-plus, command-r, command-light | command-light | Yes |
+| Together AI | llama-4-maverick/scout, llama-3.3-70b, deepseek-v3/r1, qwen-2.5-72b, mistral-7b | mistral-7b-instruct | Yes |
+| Replicate | llama-4, llama-3.3-70b, deepseek-r1, mistral-7b | mistral-7b-instruct | Yes |
+| Perplexity | sonar-deep-research, sonar-reasoning-pro, sonar-pro, sonar, r1-1776 | sonar | Yes |
+| xAI (Grok) | grok-4, grok-3-beta, grok-3-mini-beta, grok-2-vision | grok-3-mini-fast-beta | Yes |
+| Fireworks AI | llama-4, deepseek-v3/r1, qwen3-235b, mixtral-8x22b | mixtral-8x7b | Yes |
+| Hugging Face | llama-4, qwen3-235b, deepseek-r1/v3, gemma-3-27b, mistral-7b | phi-3.5-mini | Yes |
+| Ollama | llama4, deepseek-r1, qwen3, gemma3, mistral, phi4, codellama | Any local model | No |
+| LM Studio | Any GGUF model loaded locally | Any local model | No |
+| AWS Bedrock | Claude, Llama, Nova, Titan, Mistral, Cohere (via AWS) | amazon.nova-micro | AWS Creds |
+| Azure AI Foundry | GPT-4o, Phi-4, Llama, Mistral, DeepSeek (via Azure) | phi-4-mini | Yes |
+| Google Vertex AI | Gemini 2.5/2.0, Claude on Vertex, Llama on Vertex | gemini-2.0-flash-lite | GCP Creds |
 
 ## Installation
 
