@@ -76,11 +76,18 @@ Mubble is an open-source desktop application that lets you dictate text into any
 
 ## Installation
 
-### Download Source Code (v0.1.0)
+### Download Portable Executable (Recommended)
 
-Download the source code for the latest release from the [Releases](https://github.com/DeepanSarkar03/Mubble/releases) page:
+Download the pre-built Windows portable executable from the [Releases](https://github.com/DeepanSarkar03/Mubble/releases) page:
 
-- **Source code (zip)** or **Source code (tar.gz)**
+1. Go to [Releases](https://github.com/DeepanSarkar03/Mubble/releases)
+2. Download the latest `Mubble-v*.*.* -portable-x64.tar.gz` (or `.zip` if available)
+3. Extract the archive to a folder
+4. Run `Mubble.exe`
+
+**That's it!** No installer needed — just extract and run.
+
+> **Note:** Windows may warn about running an unsigned executable. Click "Run anyway" or "More info" → "Run anyway" to proceed.
 
 ### Build from Source
 
@@ -98,11 +105,24 @@ pnpm run build
 # Run in development mode
 pnpm run dev
 
-# Build installers (requires Build Tools for Visual Studio on Windows, Xcode on macOS)
+# Build distributions
 cd apps/desktop
-pnpm run dist:win   # Windows
-pnpm run dist:mac   # macOS
+npm config set cache /tmp
+npx electron-builder --win --dir   # Windows portable (creates release/win-unpacked/Mubble.exe)
+
+# Compress for distribution
+cd ../../release
+tar -czf Mubble-portable-x64.tar.gz win-unpacked/
 ```
+
+### Running the Portable Executable
+
+After downloading and extracting the portable version:
+
+1. Navigate to the extracted folder
+2. Double-click `Mubble.exe` to launch the app
+3. The app will start with a system tray icon and floating Flow Bar
+4. Click the tray icon or Flow Bar to access settings
 
 ### First Run Setup
 
@@ -120,6 +140,7 @@ pnpm run dist:mac   # macOS
 
 4. **Start Dictating** — Press `Ctrl+Shift+Space` (default shortcut)
    - Or customize in **Settings > Shortcuts**
+   - Hold the shortcut to record, release to transcribe and inject text
 
 ## Development
 
