@@ -159,6 +159,44 @@ const api = {
     ipcRenderer.on('navigate', handler)
     return () => ipcRenderer.removeListener('navigate', handler)
   },
+
+  // Auto-updater
+  updates: {
+    /** Manually trigger an update check. */
+    check: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.UPDATE_CHECK).then(() => undefined),
+
+    /** Quit and install the downloaded update immediately. */
+    install: (): void => ipcRenderer.send(IPC.UPDATE_INSTALL),
+
+    /** Fires when a new version is available and the download has started. */
+    onUpdateAvailable: (cb: (info: { version: string; releaseName: string; releaseDate: string }) => void): (() => void) => {
+      const handler = (_: unknown, info: { version: string; releaseName: string; releaseDate: string }) => cb(info)
+      ipcRenderer.on(IPC.UPDATE_AVAILABLE, handler)
+      return () => ipcRenderer.removeListener(IPC.UPDATE_AVAILABLE, handler)
+    },
+
+    /** Fires repeatedly with download progress (0–100 %). */
+    onProgress: (cb: (info: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void): (() => void) => {
+      const handler = (_: unknown, info: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => cb(info)
+      ipcRenderer.on(IPC.UPDATE_PROGRESS, handler)
+      return () => ipcRenderer.removeListener(IPC.UPDATE_PROGRESS, handler)
+    },
+
+    /** Fires when the update has been downloaded and is ready to install. */
+    onUpdateDownloaded: (cb: (info: { version: string; releaseName: string; releaseDate: string }) => void): (() => void) => {
+      const handler = (_: unknown, info: { version: string; releaseName: string; releaseDate: string }) => cb(info)
+      ipcRenderer.on(IPC.UPDATE_DOWNLOADED, handler)
+      return () => ipcRenderer.removeListener(IPC.UPDATE_DOWNLOADED, handler)
+    },
+
+    /** Fires if the update check or download encountered an error. */
+    onError: (cb: (message: string) => void): (() => void) => {
+      const handler = (_: unknown, message: string) => cb(message)
+      ipcRenderer.on(IPC.UPDATE_ERROR, handler)
+      return () => ipcRenderer.removeListener(IPC.UPDATE_ERROR, handler)
+    },
+  },
 }
 
 export type MubbleAPI = typeof api

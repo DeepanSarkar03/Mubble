@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { Home, Settings, History, BarChart3, Minus, Square, X } from 'lucide-react'
 import { Animated, StaggerContainer, Tooltip, FloatingElement } from '../../components/ui'
+import UpdateBanner from '../updater/UpdateBanner'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Home' },
@@ -58,6 +59,9 @@ export default function MainLayout() {
           </div>
         </div>
       </Animated>
+
+      {/* Update banner — shown only when an update is available/downloading/ready */}
+      <UpdateBanner />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Minimal dark with icon animations */}

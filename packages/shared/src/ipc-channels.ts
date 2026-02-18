@@ -65,4 +65,16 @@ export const IPC = {
   WINDOW_MAXIMIZE: 'window:maximize',
   WINDOW_CLOSE: 'window:close',
   FLOW_BAR_TOGGLE: 'flowBar:toggle',
+
+  // Auto-updater (main → renderer events)
+  UPDATE_AVAILABLE: 'update:available',
+  UPDATE_DOWNLOADING: 'update:downloading',
+  UPDATE_PROGRESS: 'update:progress',
+  UPDATE_DOWNLOADED: 'update:downloaded',
+  UPDATE_ERROR: 'update:error',
+  UPDATE_NOT_AVAILABLE: 'update:not-available',
+
+  // Auto-updater (renderer → main commands)
+  UPDATE_CHECK: 'update:check',
+  UPDATE_INSTALL: 'update:install',
 } as const

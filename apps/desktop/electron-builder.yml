@@ -13,22 +13,48 @@ files:
 npmRebuild: false
 buildDependenciesFromSource: false
 
-# Disable all code signing
-artifactBuildStarted: null
+# Code signing is disabled for unsigned/portable builds.
+# To enable signed builds set the CSC_LINK / WIN_CSC_LINK env variables.
 afterSign: null
 
+# ── Windows ───────────────────────────────────────────────────────────────
 win:
+  # Portable .exe — no installer, no code-signing tools needed.
+  # For a full NSIS installer, set WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD and
+  # add "nsis" to the target list below.
   target:
     - target: portable
       arch: [x64]
   icon: resources/icon.ico
-  certificateFile: null
 
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# ── macOS ─────────────────────────────────────────────────────────────────
 mac:
   target:
     - target: dmg
       arch: [x64, arm64]
   icon: resources/icon.icns
   category: public.app-category.productivity
+  # Notarisation is skipped when CSC_LINK / APPLE_ID are absent.
 
-publish: null
+# ── Linux ─────────────────────────────────────────────────────────────────
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: resources/icons
+  category: Utility
+
+# ── Auto-updater publish config ───────────────────────────────────────────
+# electron-updater reads this at runtime to know where to check for updates.
+# GH_TOKEN must be available in CI when uploading release assets.
+publish:
+  provider: github
+  owner: DeepanSarkar03
+  repo: Mubble

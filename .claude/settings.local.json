@@ -33,7 +33,8 @@
       "Bash(npm_config_cache=/tmp npx electron-builder:*)",
       "Bash(zip -r:*)",
       "Bash(npx 7zip-bin:*)",
-      "Bash(tar:*)"
+      "Bash(tar:*)",
+      "Bash(gh release:*)"
     ]
   }
 }

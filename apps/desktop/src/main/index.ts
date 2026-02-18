@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllHandlers } from './ipc/ipc-registry'
 import { createTray } from './tray/tray-manager'
 import { createFlowBar } from './windows/flow-bar'
+import { setupAutoUpdater } from './updater/auto-updater'
 
 let mainWindow: BrowserWindow | null = null
 let flowBarWindow: BrowserWindow | null = null
@@ -63,6 +64,11 @@ app.whenReady().then(() => {
 
   // Create system tray
   tray = createTray(mainWindow, flowBarWindow)
+
+  // Set up auto-updater (only in production to avoid dev-mode errors)
+  if (!is.dev) {
+    setupAutoUpdater(mainWindow)
+  }
 
   // Window management IPC
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
