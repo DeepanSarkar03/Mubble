@@ -7,22 +7,22 @@ directories:
   output: ../../release
 
 files:
-  - "dist/**/*"
+  - "out/**/*"
+  - "node_modules/**/*"
 
-npmRebuild: true
+npmRebuild: false
+buildDependenciesFromSource: false
+
+# Disable all code signing
+artifactBuildStarted: null
+afterSign: null
 
 win:
   target:
-    - target: nsis
+    - target: portable
       arch: [x64]
   icon: resources/icon.ico
-
-nsis:
-  oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
+  certificateFile: null
 
 mac:
   target:
@@ -30,10 +30,5 @@ mac:
       arch: [x64, arm64]
   icon: resources/icon.icns
   category: public.app-category.productivity
-  hardenedRuntime: true
-  entitlements: resources/entitlements.mac.plist
-  entitlementsInherit: resources/entitlements.mac.plist
 
-publish:
-  provider: github
-  releaseType: release
+publish: null

@@ -31,12 +31,34 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      - name: Build Electron app (Windows)
+      - name: Build Electron app (Windows portable)
         run: |
           cd apps/desktop
-          npx electron-builder --win --publish always
+          npm config set cache /tmp
+          npx electron-builder --win --dir -c.win.certificateFile="" 2>&1 | grep -E "(packaging|completed)" || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package portable executable
+        run: |
+          cd release
+          if (Test-Path "win-unpacked\Mubble.exe") {
+            Write-Host "Creating archive..."
+            tar --version
+            tar -czf Mubble-${{ github.ref_name }}-portable-x64.tar.gz win-unpacked/
+            Get-Item "Mubble-${{ github.ref_name }}-portable-x64.tar.gz" | Format-List Name, Length
+          } else {
+            Write-Host "ERROR: Mubble.exe not found"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/Mubble-${{ github.ref_name }}-portable-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-macos:
     runs-on: macos-latest
