@@ -34,7 +34,14 @@
       "Bash(zip -r:*)",
       "Bash(npx 7zip-bin:*)",
       "Bash(tar:*)",
-      "Bash(gh release:*)"
+      "Bash(gh release:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "WebFetch(domain:docs.x.ai)",
+      "WebFetch(domain:docs.perplexity.ai)",
+      "WebFetch(domain:docs.together.ai)",
+      "WebFetch(domain:docs.cohere.com)",
+      "WebFetch(domain:docs.mistral.ai)"
     ]
   }
 }

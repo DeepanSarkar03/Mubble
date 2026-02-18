@@ -48,19 +48,19 @@ function createMainWindow(): BrowserWindow {
   return window
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.mubble.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Register IPC handlers
-  registerAllHandlers()
-
-  // Create windows
+  // Create windows first
   mainWindow = createMainWindow()
   flowBarWindow = createFlowBar()
+
+  // Register IPC handlers (needs windows to be created)
+  await registerAllHandlers(mainWindow)
 
   // Create system tray
   tray = createTray(mainWindow, flowBarWindow)

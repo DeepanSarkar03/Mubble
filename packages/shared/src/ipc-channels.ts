@@ -44,6 +44,7 @@ export const IPC = {
   HISTORY_QUERY: 'history:query',
   HISTORY_DELETE: 'history:delete',
   HISTORY_CLEAR: 'history:clear',
+  HISTORY_ADD: 'history:add',
 
   // Analytics
   ANALYTICS_GET_DAILY: 'analytics:getDaily',
