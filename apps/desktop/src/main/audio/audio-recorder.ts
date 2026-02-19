@@ -1,34 +1,31 @@
 /**
- * Audio Recorder - Records audio from microphone
- * Uses node-record-lpcm16 for cross-platform audio capture
+ * Audio Recorder using Electron's desktopCapturer
+ * Captures microphone audio via Chromium's MediaDevices API
  */
 
 import { EventEmitter } from 'events'
-import { spawn, ChildProcess } from 'child_process'
-import { platform } from 'os'
+import { BrowserWindow, desktopCapturer, ipcMain } from 'electron'
+import { join } from 'path'
 
 export interface AudioRecorderOptions {
   sampleRate?: number
   channels?: number
-  device?: string
-  silenceThreshold?: number
-  silenceDuration?: number
+  deviceId?: string
 }
 
 export class AudioRecorder extends EventEmitter {
-  private process: ChildProcess | null = null
-  private audioBuffer: Buffer[] = []
   private isRecording = false
+  private audioBuffer: Buffer[] = []
   private options: Required<AudioRecorderOptions>
+  private recordingWindow: BrowserWindow | null = null
+  private ipcHandlers: (() => void)[] = []
 
   constructor(options: AudioRecorderOptions = {}) {
     super()
     this.options = {
       sampleRate: 16000,
       channels: 1,
-      device: '',
-      silenceThreshold: 0.5,
-      silenceDuration: 2000,
+      deviceId: '',
       ...options
     }
   }
@@ -39,144 +36,250 @@ export class AudioRecorder extends EventEmitter {
     this.isRecording = true
     this.audioBuffer = []
 
-    const os = platform()
-
     try {
-      if (os === 'win32') {
-        await this.startWindows()
-      } else if (os === 'darwin') {
-        await this.startMacOS()
-      } else {
-        await this.startLinux()
-      }
+      // Create a hidden window for Web Audio API access
+      this.recordingWindow = new BrowserWindow({
+        width: 1,
+        height: 1,
+        show: false,
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false,
+          sandbox: false,
+        },
+      })
+
+      // Set up IPC handlers
+      this.setupIPC()
+
+      // Load the recording HTML
+      await this.recordingWindow.loadURL(`data:text/html,${encodeURIComponent(this.getRecordingHTML())}`)
+
+      // Wait for ready
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Audio initialization timeout')), 5000)
+        
+        const handler = (_event: any, result: string) => {
+          if (result === 'started') {
+            clearTimeout(timeout)
+            cleanup()
+            resolve(true)
+          } else if (result.startsWith('error:')) {
+            clearTimeout(timeout)
+            cleanup()
+            reject(new Error(result.substring(6)))
+          }
+        }
+        
+        ipcMain.once('audio:status', handler)
+        
+        const cleanup = () => {
+          ipcMain.removeListener('audio:status', handler)
+        }
+      })
+
+      // Start recording in the hidden window
+      await this.recordingWindow.webContents.executeJavaScript(`window.startRecording()`)
+      
       this.emit('start')
     } catch (error) {
+      this.cleanup()
       this.isRecording = false
       this.emit('error', error)
       throw error
     }
   }
 
-  private async startWindows(): Promise<void> {
-    // Use PowerShell and Windows Sound Recorder or ffmpeg
-    // For production, use a native Node.js addon or ffmpeg
-    const args = [
-      '-f', 'dshow',
-      '-i', `audio=${this.options.device || 'Microphone'}`,
-      '-ar', this.options.sampleRate.toString(),
-      '-ac', this.options.channels.toString(),
-      '-f', 's16le',
-      '-'
-    ]
+  private setupIPC(): void {
+    // Audio data handler
+    const dataHandler = (_event: any, base64Data: string) => {
+      const buffer = Buffer.from(base64Data, 'base64')
+      this.audioBuffer.push(buffer)
+      this.emit('data', buffer)
+    }
+    ipcMain.on('audio:data', dataHandler)
+    this.ipcHandlers.push(() => ipcMain.removeListener('audio:data', dataHandler))
 
-    this.process = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-
-    this.setupProcessHandlers()
-  }
-
-  private async startMacOS(): Promise<void> {
-    // Use ffmpeg with AVFoundation
-    const args = [
-      '-f', 'avfoundation',
-      '-i', `:${this.options.device || '0'}`,
-      '-ar', this.options.sampleRate.toString(),
-      '-ac', this.options.channels.toString(),
-      '-f', 's16le',
-      '-'
-    ]
-
-    this.process = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-
-    this.setupProcessHandlers()
-  }
-
-  private async startLinux(): Promise<void> {
-    // Use arecord (ALSA) or ffmpeg with pulse
-    const args = [
-      '-f', 'alsa',
-      '-i', this.options.device || 'default',
-      '-ar', this.options.sampleRate.toString(),
-      '-ac', this.options.channels.toString(),
-      '-f', 's16le',
-      '-'
-    ]
-
-    this.process = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-
-    this.setupProcessHandlers()
-  }
-
-  private setupProcessHandlers(): void {
-    if (!this.process) return
-
-    this.process.stdout?.on('data', (data: Buffer) => {
-      this.audioBuffer.push(data)
-      this.emit('data', data)
-      
-      // Calculate audio level for VU meter
-      const level = this.calculateAudioLevel(data)
+    // Audio level handler
+    const levelHandler = (_event: any, level: number) => {
       this.emit('level', level)
-    })
+    }
+    ipcMain.on('audio:level', levelHandler)
+    this.ipcHandlers.push(() => ipcMain.removeListener('audio:level', levelHandler))
 
-    this.process.stderr?.on('data', (data: Buffer) => {
-      // ffmpeg outputs to stderr
-      console.log('Audio recorder:', data.toString())
-    })
-
-    this.process.on('error', (error) => {
-      this.isRecording = false
-      this.emit('error', error)
-    })
-
-    this.process.on('close', (code) => {
-      this.isRecording = false
-      if (code !== 0 && code !== null) {
-        this.emit('error', new Error(`Recorder exited with code ${code}`))
+    // Status handler
+    const statusHandler = (_event: any, status: string) => {
+      if (status.startsWith('error:')) {
+        console.error('Audio error:', status.substring(6))
       }
-    })
+    }
+    ipcMain.on('audio:status', statusHandler)
+    this.ipcHandlers.push(() => ipcMain.removeListener('audio:status', statusHandler))
   }
 
-  private calculateAudioLevel(data: Buffer): number {
-    // Calculate RMS (root mean square) audio level
-    let sum = 0
-    const samples = data.length / 2 // 16-bit samples
-    
-    for (let i = 0; i < data.length; i += 2) {
-      const sample = data.readInt16LE(i)
-      sum += sample * sample
+  private getRecordingHTML(): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+<script>
+  const { ipcRenderer } = require('electron');
+  
+  let mediaRecorder = null;
+  let audioContext = null;
+  let analyser = null;
+  let source = null;
+  let stream = null;
+  let recordedChunks = [];
+  let levelInterval = null;
+
+  async function startRecording() {
+    try {
+      console.log('Requesting microphone access...');
+      
+      // Get microphone stream
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
+      });
+
+      console.log('Microphone access granted');
+
+      // Set up audio context for level monitoring
+      audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000
+      });
+      
+      source = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      // Start level monitoring
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      levelInterval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / dataArray.length;
+        const normalized = average / 255;
+        ipcRenderer.send('audio:level', normalized);
+      }, 50);
+
+      // Set up MediaRecorder with WAV format
+      const options = {
+        mimeType: 'audio/webm;codecs=opus'
+      };
+      
+      mediaRecorder = new MediaRecorder(stream, options);
+      recordedChunks = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+          // Convert to base64 and send to main process
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            ipcRenderer.send('audio:data', base64);
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log('Recording stopped');
+      };
+
+      mediaRecorder.onerror = (err) => {
+        console.error('MediaRecorder error:', err);
+        ipcRenderer.send('audio:status', 'error:' + err.message);
+      };
+
+      // Start recording - collect data every 100ms
+      mediaRecorder.start(100);
+      
+      console.log('Recording started');
+      ipcRenderer.send('audio:status', 'started');
+      
+    } catch (err) {
+      console.error('Failed to start recording:', err);
+      ipcRenderer.send('audio:status', 'error:' + err.message);
+    }
+  }
+
+  function stopRecording() {
+    if (levelInterval) {
+      clearInterval(levelInterval);
+      levelInterval = null;
     }
     
-    const rms = Math.sqrt(sum / samples)
-    // Normalize to 0-1 range (16-bit max is 32768)
-    return Math.min(rms / 32768, 1)
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    
+    if (audioContext) {
+      audioContext.close();
+    }
+    
+    console.log('Recording cleanup complete');
+  }
+
+  // Expose to window
+  window.startRecording = startRecording;
+  window.stopRecording = stopRecording;
+</script>
+</body>
+</html>
+    `
   }
 
   stop(): Buffer {
-    if (!this.isRecording || !this.process) {
+    if (!this.isRecording) {
       return Buffer.concat(this.audioBuffer)
     }
 
     this.isRecording = false
 
-    // Kill the ffmpeg process
-    this.process.kill('SIGTERM')
-    
-    // Force kill after 2 seconds if still running
-    setTimeout(() => {
-      if (this.process && !this.process.killed) {
-        this.process.kill('SIGKILL')
-      }
-    }, 2000)
+    // Stop recording in the hidden window
+    if (this.recordingWindow) {
+      this.recordingWindow.webContents.executeJavaScript(`window.stopRecording()`)
+        .catch(() => {})
+    }
+
+    // Wait a bit for final data
+    setTimeout(() => this.cleanup(), 500)
 
     const result = Buffer.concat(this.audioBuffer)
     this.emit('stop', result)
     return result
+  }
+
+  private cleanup(): void {
+    // Remove IPC handlers
+    this.ipcHandlers.forEach(cleanup => cleanup())
+    this.ipcHandlers = []
+
+    // Close window
+    if (this.recordingWindow) {
+      this.recordingWindow.destroy()
+      this.recordingWindow = null
+    }
   }
 
   getIsRecording(): boolean {

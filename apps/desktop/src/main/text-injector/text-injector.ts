@@ -1,19 +1,18 @@
 /**
  * Text Injector - Types text into the active window
- * Uses native OS APIs to simulate keyboard input
+ * Uses multiple methods with fallbacks for maximum reliability
  */
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { clipboard } from 'electron'
 
 const execAsync = promisify(exec)
 
-/**
- * Inject text into the currently focused application
- * On Windows: uses PowerShell SendKeys or native Windows API
- */
 export async function injectText(text: string): Promise<void> {
-  if (!text) return
+  if (!text || text.trim().length === 0) return
+
+  console.log('Injecting text:', text.substring(0, 50) + '...')
 
   const platform = process.platform
 
@@ -24,9 +23,8 @@ export async function injectText(text: string): Promise<void> {
       await injectMacOS(text)
     } else if (platform === 'linux') {
       await injectLinux(text)
-    } else {
-      throw new Error(`Unsupported platform: ${platform}`)
     }
+    console.log('Text injected successfully')
   } catch (error) {
     console.error('Failed to inject text:', error)
     throw error
@@ -34,113 +32,149 @@ export async function injectText(text: string): Promise<void> {
 }
 
 async function injectWindows(text: string): Promise<void> {
+  const errors: Error[] = []
+
+  // Method 1: PowerShell SendKeys (most compatible)
+  try {
+    await injectSendKeys(text)
+    return
+  } catch (e: any) {
+    errors.push(e)
+    console.log('SendKeys failed, trying clipboard...')
+  }
+
+  // Method 2: Clipboard paste
+  try {
+    await injectClipboard(text)
+    return
+  } catch (e: any) {
+    errors.push(e)
+    console.log('Clipboard paste failed')
+  }
+
+  // All methods failed
+  throw new Error(`All injection methods failed: ${errors.map(e => e.message).join(', ')}`)
+}
+
+async function injectSendKeys(text: string): Promise<void> {
   // Escape special characters for SendKeys
   const escaped = text
-    .replace(/[{}\[\]^~]/g, '{$&}')  // Escape special keys
-    .replace(/\n/g, '{ENTER}')        // Convert newlines to Enter key
-    .replace(/\t/g, '{TAB}')          // Convert tabs to Tab key
-    .replace(/"/g, '""""')           // Escape quotes
+    .replace(/[{}\[\]^~+=%]/g, '{$&}')  // Escape special keys
+    .replace(/\n/g, '{ENTER}')          // Newlines to Enter
+    .replace(/\t/g, '{TAB}')            // Tabs to Tab
+    .replace(/"/g, '""""')              // Escape quotes for PowerShell
 
-  // Use PowerShell SendKeys to type the text
-  const psScript = `
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.SendKeys]::SendWait("${escaped}")
-  `
-
-  // Alternative: Use native Windows API via node-gyp addon
-  // For production, this should use a native module like @nut-tree/nut.js
-
-  try {
-    await execAsync(`powershell.exe -Command "${psScript}"`, {
-      timeout: 10000
-    })
-  } catch (error) {
-    console.warn('PowerShell SendKeys failed, trying alternative method:', error)
+  // Split long text into chunks to avoid PowerShell limits
+  const maxChunkLength = 500
+  const chunks: string[] = []
+  
+  if (escaped.length > maxChunkLength) {
+    // Split by sentences or spaces
+    let currentChunk = ''
+    const sentences = escaped.split(/(?<=[.!?])\s+/)
     
-    // Fallback: use clipboard paste method
-    await injectViaClipboard(text)
+    for (const sentence of sentences) {
+      if (currentChunk.length + sentence.length > maxChunkLength) {
+        if (currentChunk) chunks.push(currentChunk)
+        currentChunk = sentence
+      } else {
+        currentChunk += (currentChunk ? ' ' : '') + sentence
+      }
+    }
+    if (currentChunk) chunks.push(currentChunk)
+  } else {
+    chunks.push(escaped)
+  }
+
+  // Send each chunk
+  for (const chunk of chunks) {
+    const psScript = `[System.Windows.Forms.SendKeys]::SendWait("${chunk}")`
+    
+    await execAsync(
+      `powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; ${psScript}"`,
+      { timeout: 10000 }
+    )
+    
+    // Small delay between chunks
+    if (chunks.length > 1) {
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
   }
 }
 
-async function injectViaClipboard(text: string): Promise<void> {
-  // Copy text to clipboard, then paste
-  const { clipboard } = require('electron')
+async function injectClipboard(text: string): Promise<void> {
+  // Save original clipboard
+  const originalText = clipboard.readText()
   
-  const originalClipboard = clipboard.readText()
-  clipboard.writeText(text)
-
   try {
-    // Simulate Ctrl+V paste
-    const psScript = `
-      Add-Type -AssemblyName System.Windows.Forms
-      [System.Windows.Forms.SendKeys]::SendWait("^v")
-    `
-    await execAsync(`powershell.exe -Command "${psScript}"`, {
-      timeout: 5000
-    })
-
-    // Small delay to ensure paste completes
+    // Copy text to clipboard
+    clipboard.writeText(text)
+    
+    // Wait a bit for clipboard to update
     await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Paste with Ctrl+V
+    await execAsync(
+      `powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`,
+      { timeout: 5000 }
+    )
+    
+    // Wait for paste to complete
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
   } finally {
-    // Restore original clipboard content
-    clipboard.writeText(originalClipboard)
+    // Restore original clipboard after a delay
+    setTimeout(() => {
+      clipboard.writeText(originalText)
+    }, 500)
   }
 }
 
 async function injectMacOS(text: string): Promise<void> {
-  // Use AppleScript or osascript to type text
+  // Escape for AppleScript
   const escaped = text
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/'/g, "'\"'\"'")
 
   const script = `osascript -e 'tell application "System Events" to keystroke "${escaped}"'`
-  
   await execAsync(script, { timeout: 10000 })
 }
 
 async function injectLinux(text: string): Promise<void> {
-  // Use xdotool or ydotool for Wayland
-  const escaped = text
-    .replace(/'/g, "'\"'\"'")
-    .replace(/\n/g, '\\n')
-
+  const escaped = text.replace(/'/g, "'\"'\"'")
+  
   try {
-    // Try xdotool first (X11)
+    // Try xdotool
     await execAsync(`xdotool type --delay 0 '${escaped}'`, { timeout: 10000 })
   } catch {
     try {
-      // Fallback to ydotool (Wayland)
+      // Fallback to ydotool
       await execAsync(`ydotool type --delay 0 '${escaped}'`, { timeout: 10000 })
     } catch {
-      // Last resort: use wl-copy + wl-paste for Wayland
-      await execAsync(`echo '${escaped}' | wl-copy`, { timeout: 5000 })
-      await execAsync('ydotool key ctrl+v', { timeout: 5000 })
+      throw new Error('Neither xdotool nor ydotool available')
     }
   }
 }
 
-/**
- * Simulate a keyboard shortcut
- */
-export async function simulateShortcut(keys: string[]): Promise<void> {
+export async function simulateKeyCombo(keys: string[]): Promise<void> {
   const platform = process.platform
 
   if (platform === 'win32') {
+    // Convert keys to SendKeys format
     const keyString = keys.map(k => {
       const lower = k.toLowerCase()
-      if (lower === 'ctrl') return '^'
+      if (lower === 'ctrl' || lower === 'control') return '^'
       if (lower === 'alt') return '%'
       if (lower === 'shift') return '+'
-      if (lower === 'win') return '#'
+      if (lower === 'win' || lower === 'command') return '#'
       return k
     }).join('')
 
-    const psScript = `
-      Add-Type -AssemblyName System.Windows.Forms
-      [System.Windows.Forms.SendKeys]::SendWait("${keyString}")
-    `
-    await execAsync(`powershell.exe -Command "${psScript}"`, { timeout: 5000 })
+    const psScript = `[System.Windows.Forms.SendKeys]::SendWait("${keyString}")`
+    await execAsync(
+      `powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; ${psScript}"`,
+      { timeout: 5000 }
+    )
   }
-  // Add macOS and Linux implementations as needed
 }

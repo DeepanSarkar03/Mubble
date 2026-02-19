@@ -1,13 +1,14 @@
 /**
- * Dictation Manager - Full Wispr Flow functionality
+ * Dictation Manager - Full Wispr Flow implementation
  * 
- * Features:
- * - Push-to-Talk: Hold key to record, release to transcribe
- * - Hands-Free: VAD auto-start/stop
- * - Command Mode: Transform selected text
- * - Real STT integration
- * - Dictionary, Snippets, LLM cleanup
- * - Text injection into active window
+ * Flow:
+ * 1. User presses shortcut
+ * 2. Start audio recording via hidden window (getUserMedia)
+ * 3. Stream/accumulate audio chunks
+ * 4. User releases shortcut
+ * 5. Stop recording, send to STT
+ * 6. Process result (dict, snippets, cleanup)
+ * 7. Inject text into active window
  */
 
 import { EventEmitter } from 'events'
@@ -17,10 +18,9 @@ import { sttRegistry } from '@mubble/stt-providers'
 import { llmRegistry } from '@mubble/llm-providers'
 import { getCleanupPrompt } from '@mubble/llm-providers'
 import type { DictationState, DictationMode } from '@mubble/shared'
+import { AudioRecorder } from '../audio/audio-recorder'
 import { injectText } from '../text-injector/text-injector'
-import { AudioRecorderNative } from '../audio/audio-recorder-native'
 import { SoundEffects } from '../audio/sound-effects'
-import { ActiveWindowDetector } from '../window-detector/active-window'
 import { NotificationManager } from '../notifications/notification-manager'
 
 interface DictationConfig {
@@ -35,37 +35,24 @@ interface DictationConfig {
   snippets?: Record<string, string>
 }
 
-interface HistoryEntry {
-  id: number
-  rawText: string
-  processedText: string
-  timestamp: string
-  duration: number
-  mode: DictationMode
-}
-
 export class DictationManager extends EventEmitter {
   private state: DictationState = 'idle'
   private config: DictationConfig | null = null
   private currentMode: DictationMode = 'push-to-talk'
-  private audioRecorder: AudioRecorderNative | null = null
-  private lastTranscription: string = ''
-  private history: HistoryEntry[] = []
-  private historyId = 0
-  private startTime: number = 0
+  private audioRecorder: AudioRecorder | null = null
+  private lastTranscription = ''
+  private startTime = 0
   private mainWindow: BrowserWindow | null = null
   private flowBarWindow: BrowserWindow | null = null
   private soundEffects: SoundEffects
-  private windowDetector: ActiveWindowDetector
   private notifications: NotificationManager
+  private history: Array<{text: string, timestamp: number}> = []
 
   constructor(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null) {
     super()
     this.mainWindow = mainWindow
     this.flowBarWindow = flowBarWindow
     this.soundEffects = new SoundEffects()
-    this.windowDetector = new ActiveWindowDetector()
-    this.windowDetector.startMonitoring()
     this.notifications = new NotificationManager(mainWindow, flowBarWindow)
     this.setupIPC()
   }
@@ -88,81 +75,79 @@ export class DictationManager extends EventEmitter {
         mode: this.currentMode
       }
     })
-
-    // Get last transcription
-    ipcMain.handle('dictation:getLast', () => {
-      return this.lastTranscription
-    })
-
-    // Paste last transcription
-    ipcMain.handle('dictation:pasteLast', async () => {
-      if (this.lastTranscription) {
-        await injectText(this.lastTranscription)
-      }
-      return this.lastTranscription
-    })
-
-    // Handle command mode
-    ipcMain.handle('command:execute', async (_event, selectedText: string, command: string) => {
-      return this.executeCommand(selectedText, command)
-    })
   }
 
-  async start(mode: DictationMode = 'push-to-talk'): Promise<void> {
+  async start(mode: DictationMode = 'push-to-talk'): Promise<boolean> {
     if (this.state === 'recording' || this.state === 'processing') {
-      return
+      console.log('Already recording, ignoring start request')
+      return false
     }
+
+    console.log('Starting dictation...')
 
     try {
       // Load config
       this.config = await this.loadConfig()
       if (!this.config) {
-        this.notifications.noProviderConfigured()
+        console.error('No STT provider configured')
+        this.notifications.showError('No STT provider configured', 'Please set up a provider in Settings first.')
         this.setState('error')
-        return
+        return false
       }
 
+      console.log('Config loaded:', this.config.sttProviderId)
+
       this.currentMode = mode
-      this.setState('listening')
+      this.setState('recording')
       this.startTime = Date.now()
 
-      // Start audio recording (native, no ffmpeg needed)
-      this.audioRecorder = new AudioRecorderNative({
+      // Start audio recording
+      this.audioRecorder = new AudioRecorder({
         sampleRate: 16000,
         channels: 1
       })
 
-      // Listen for audio levels (for VU meter)
+      // Listen for audio levels
       this.audioRecorder.on('level', (level: number) => {
         this.mainWindow?.webContents.send(IPC.AUDIO_LEVEL, level)
         this.flowBarWindow?.webContents.send(IPC.AUDIO_LEVEL, level)
       })
 
+      // Listen for errors
+      this.audioRecorder.on('error', (error: Error) => {
+        console.error('Audio recorder error:', error)
+        this.soundEffects.playError()
+        this.notifications.showError('Recording error', error.message)
+        this.setState('error')
+      })
+
       await this.audioRecorder.start()
-      this.setState('recording')
       
       // Play start sound
       this.soundEffects.playStart()
-
+      
+      console.log('Recording started successfully')
       this.emit('start', { mode, timestamp: this.startTime })
+      
+      return true
     } catch (error: any) {
       console.error('Failed to start dictation:', error)
       this.soundEffects.playError()
-      if (error.message?.includes('microphone') || error.message?.includes('audio')) {
-        this.notifications.noMicrophoneAccess()
-      } else {
-        this.notifications.showError('Failed to start recording', error.message || 'Please check your microphone.')
-      }
+      this.notifications.showError('Failed to start recording', error.message || 'Check microphone permissions')
       this.setState('error')
+      return false
     }
   }
 
   async stop(): Promise<string | null> {
     if (this.state !== 'recording') {
+      console.log('Not recording, ignoring stop request')
       return null
     }
 
+    console.log('Stopping dictation...')
     this.setState('processing')
+    this.soundEffects.playStop()
 
     try {
       // Stop recording and get audio
@@ -170,59 +155,61 @@ export class DictationManager extends EventEmitter {
       const duration = Date.now() - this.startTime
 
       if (!audioBuffer || audioBuffer.length < 1000) {
-        this.showError('Recording too short. Please try again.')
+        console.warn('Recording too short')
+        this.notifications.showWarning('Recording too short', 'Please hold the key longer while speaking.')
         this.setState('idle')
         return null
       }
 
+      console.log(`Audio recorded: ${audioBuffer.length} bytes, ${duration}ms`)
+
       // Get STT provider
       if (!this.config) {
+        console.error('No config loaded')
         this.setState('idle')
         return null
       }
 
       const provider = sttRegistry.get(this.config.sttProviderId)
       if (!provider) {
-        this.showError(`STT provider ${this.config.sttProviderId} not found`)
-        this.setState('error')
-        return null
+        throw new Error(`STT provider ${this.config.sttProviderId} not found`)
       }
 
+      console.log('Transcribing with', provider.name)
+
       // Transcribe audio
-      this.showNotification('Transcribing...')
-      
-      const sttResult = await provider.transcribe(audioBuffer, {
+      const sttResult = await provider.transcribe(audioBuffer, 'webm', {
         apiKey: this.config.sttApiKey,
         model: this.config.sttModel,
         language: 'en'
       })
 
-      if (!sttResult.text) {
-        this.showError('No speech detected. Please try again.')
+      if (!sttResult.text || sttResult.text.trim().length === 0) {
+        console.warn('No speech detected')
+        this.notifications.showWarning('No speech detected', 'Try speaking louder or closer to the microphone.')
         this.setState('idle')
         return null
       }
 
-      // Process text (dictionary, snippets, cleanup)
+      console.log('Raw transcript:', sttResult.text)
+
+      // Process text
       const processedText = await this.processText(sttResult.text)
+      console.log('Processed text:', processedText)
 
       // Save to history
       this.lastTranscription = processedText
-      this.addToHistory(sttResult.text, processedText, duration)
+      this.history.unshift({ text: processedText, timestamp: Date.now() })
+      if (this.history.length > 100) this.history.pop()
 
       // Inject text into active window
-      this.showNotification('Inserting text...')
+      console.log('Injecting text...')
       await injectText(processedText)
 
-      // Update analytics
-      this.updateAnalytics(processedText, duration)
-
-      // Play success sound
+      // Success
       this.soundEffects.playSuccess()
-
-      // Show success notification
       const wordCount = processedText.split(/\s+/).length
-      this.notifications.dictationSuccess(wordCount)
+      this.notifications.showSuccess(`Inserted ${wordCount} words`)
 
       this.setState('idle')
       this.emit('result', { 
@@ -236,7 +223,7 @@ export class DictationManager extends EventEmitter {
     } catch (error: any) {
       console.error('Dictation failed:', error)
       this.soundEffects.playError()
-      this.notifications.dictationError(error.message || 'Transcription failed. Please try again.')
+      this.notifications.showError('Transcription failed', error.message || 'Please try again')
       this.setState('error')
       return null
     }
@@ -247,17 +234,17 @@ export class DictationManager extends EventEmitter {
 
     let text = rawText
 
-    // Remove filler words (like Wispr Flow)
+    // Remove filler words
     text = this.removeFillerWords(text)
 
-    // Apply dictionary replacements
+    // Apply dictionary
     if (this.config.dictionary) {
       for (const [from, to] of Object.entries(this.config.dictionary)) {
         text = text.replace(new RegExp(`\\b${this.escapeRegExp(from)}\\b`, 'gi'), to)
       }
     }
 
-    // Apply snippets expansion
+    // Apply snippets
     if (this.config.snippets) {
       for (const [trigger, expansion] of Object.entries(this.config.snippets)) {
         const regex = new RegExp(`\\b${this.escapeRegExp(trigger)}\\b`, 'gi')
@@ -267,21 +254,15 @@ export class DictationManager extends EventEmitter {
       }
     }
 
-    // Auto-format: capitalize first letter, add period if needed
+    // Auto-format
     text = this.autoFormat(text)
 
-    // Apply LLM cleanup if enabled
+    // LLM cleanup
     if (this.config.enableCleanup && this.config.llmProviderId && this.config.llmApiKey) {
       try {
         const llmProvider = llmRegistry.get(this.config.llmProviderId)
         if (llmProvider) {
-          // Detect current app and get style
-          const activeWindow = await this.windowDetector.getActiveWindow()
-          const appStyle = activeWindow 
-            ? this.windowDetector.getStyleForApp(activeWindow.processName)
-            : (this.config.formality || 'neutral')
-          
-          const systemPrompt = getCleanupPrompt(appStyle)
+          const systemPrompt = getCleanupPrompt(this.config.formality || 'neutral')
           const result = await llmProvider.complete(
             [{ role: 'user', content: text }],
             {
@@ -302,7 +283,7 @@ export class DictationManager extends EventEmitter {
   }
 
   private removeFillerWords(text: string): string {
-    const fillers = ['um', 'uh', 'like', 'you know', 'sort of', 'kind of', 'basically', 'literally']
+    const fillers = ['um', 'uh', 'like', 'you know', 'sort of', 'kind of', 'basically', 'literally', 'so', 'well']
     let result = text
     for (const filler of fillers) {
       result = result.replace(new RegExp(`\\b${filler}\\b\\s*`, 'gi'), ' ')
@@ -311,14 +292,10 @@ export class DictationManager extends EventEmitter {
   }
 
   private autoFormat(text: string): string {
-    // Capitalize first letter
     text = text.charAt(0).toUpperCase() + text.slice(1)
-    
-    // Add period if no ending punctuation
     if (!text.match(/[.!?]$/)) {
       text += '.'
     }
-    
     return text
   }
 
@@ -326,56 +303,12 @@ export class DictationManager extends EventEmitter {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
-  private async executeCommand(selectedText: string, command: string): Promise<string> {
-    if (!this.config?.llmProviderId || !this.config?.llmApiKey) {
-      return selectedText
-    }
-
-    const llmProvider = llmRegistry.get(this.config.llmProviderId)
-    if (!llmProvider) return selectedText
-
-    const prompts: Record<string, string> = {
-      'formal': 'Make this text more formal and professional:',
-      'casual': 'Make this text more casual and conversational:',
-      'shorter': 'Make this text shorter and more concise:',
-      'longer': 'Expand on this text with more detail:',
-      'fix': 'Fix any grammar and spelling errors in this text:',
-      'bullet': 'Convert this text into bullet points:',
-      'email': 'Format this as a professional email:',
-    }
-
-    const systemPrompt = prompts[command.toLowerCase()] || command
-
-    try {
-      const result = await llmProvider.complete(
-        [{ role: 'user', content: `${systemPrompt}\n\n${selectedText}` }],
-        {
-          apiKey: this.config.llmApiKey,
-          temperature: 0.5,
-          maxTokens: 2048
-        }
-      )
-      
-      const processedText = result.text || selectedText
-      
-      // Inject the transformed text
-      await injectText(processedText)
-      
-      return processedText
-    } catch (e) {
-      console.error('Command failed:', e)
-      return selectedText
-    }
-  }
-
   private async loadConfig(): Promise<DictationConfig | null> {
-    // Get settings from storage
+    // Get settings from IPC
     const settings = await ipcMain.emit(IPC.SETTINGS_GET_ALL) || {}
     
     const sttProviderId = settings.activeSTTProvider
     const sttApiKey = settings.sttApiKey
-    const llmProviderId = settings.activeLLMProvider
-    const llmApiKey = settings.llmApiKey
 
     if (!sttProviderId || !sttApiKey) {
       return null
@@ -385,8 +318,8 @@ export class DictationManager extends EventEmitter {
       sttProviderId,
       sttApiKey,
       sttModel: settings.sttModel,
-      llmProviderId: llmProviderId || undefined,
-      llmApiKey: llmApiKey || undefined,
+      llmProviderId: settings.activeLLMProvider || undefined,
+      llmApiKey: settings.llmApiKey || undefined,
       enableCleanup: settings.enableCleanup !== false,
       formality: settings.formality || 'neutral',
       dictionary: settings.dictionary || {},
@@ -394,55 +327,21 @@ export class DictationManager extends EventEmitter {
     }
   }
 
-  private addToHistory(rawText: string, processedText: string, duration: number): void {
-    this.historyId++
-    this.history.unshift({
-      id: this.historyId,
-      rawText,
-      processedText,
-      timestamp: new Date().toISOString(),
-      duration,
-      mode: this.currentMode
-    })
-
-    // Keep only last 100 entries
-    if (this.history.length > 100) {
-      this.history = this.history.slice(0, 100)
-    }
-
-    // Notify renderer
-    this.mainWindow?.webContents.send(IPC.HISTORY_CHANGED, this.history)
-  }
-
-  private updateAnalytics(text: string, duration: number): void {
-    const wordCount = text.split(/\s+/).length
-    
-    this.mainWindow?.webContents.send(IPC.ANALYTICS_UPDATE, {
-      words: wordCount,
-      duration,
-      timestamp: new Date().toISOString()
-    })
-  }
-
   private setState(newState: DictationState): void {
+    console.log(`State: ${this.state} -> ${newState}`)
     this.state = newState
     this.emit('stateChange', newState)
     
-    // Notify both windows
     const stateData = { state: newState, mode: this.currentMode }
     this.mainWindow?.webContents.send(IPC.DICTATION_STATE_CHANGED, stateData)
     this.flowBarWindow?.webContents.send(IPC.DICTATION_STATE_CHANGED, stateData)
-  }
-
-  private showNotification(message: string): void {
-    this.notifications.showInfo(message)
   }
 
   getState(): DictationState {
     return this.state
   }
 
-  getHistory(): HistoryEntry[] {
-    return this.history
+  getLastTranscription(): string {
+    return this.lastTranscription
   }
 }
