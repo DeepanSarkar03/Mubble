@@ -9,13 +9,13 @@ directories:
 files:
   - "out/**/*"
   - "node_modules/**/*"
-  # Exclude dev dependencies
-  - "!node_modules/typescript/**/*"
-  - "!node_modules/@types/**/*"
-  - "!node_modules/rimraf/**/*"
+  # Exclude dev files
+  - "!**/.turbo/**/*"
+  - "!**/tsconfig.json"
+  - "!**/*.map"
 
-npmRebuild: false
-buildDependenciesFromSource: false
+# Rebuild native modules
+npmRebuild: true
 
 # Code signing is disabled for unsigned/portable builds.
 afterSign: null

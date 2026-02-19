@@ -1,17 +1,29 @@
-import type BetterSqlite3 from 'better-sqlite3'
+import type { Database } from '../database'
 
 export class SettingsRepository {
-  constructor(private db: BetterSqlite3.Database) {}
+  constructor(private db: Database) {}
 
   get(key: string): unknown {
-    const row = this.db
+    // Use JSON fallback if available
+    if (!this.db.instance) {
+      const settings = this.db.getSettings()
+      return settings[key] ?? null
+    }
+    
+    const row = this.db.instance
       .prepare('SELECT value FROM settings WHERE key = ?')
       .get(key) as { value: string } | undefined
     return row ? JSON.parse(row.value) : null
   }
 
   set(key: string, value: unknown): void {
-    this.db
+    // Use JSON fallback if available
+    if (!this.db.instance) {
+      this.db.setSetting(key, value)
+      return
+    }
+    
+    this.db.instance
       .prepare(
         'INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)'
       )
@@ -19,7 +31,12 @@ export class SettingsRepository {
   }
 
   getAll(): Record<string, unknown> {
-    const rows = this.db.prepare('SELECT key, value FROM settings').all() as Array<{
+    // Use JSON fallback if available
+    if (!this.db.instance) {
+      return this.db.getSettings()
+    }
+    
+    const rows = this.db.instance.prepare('SELECT key, value FROM settings').all() as Array<{
       key: string
       value: string
     }>
@@ -31,6 +48,14 @@ export class SettingsRepository {
   }
 
   delete(key: string): void {
-    this.db.prepare('DELETE FROM settings WHERE key = ?').run(key)
+    // Use JSON fallback if available
+    if (!this.db.instance) {
+      const settings = this.db.getSettings()
+      delete settings[key]
+      this.db.setSetting(key, undefined)
+      return
+    }
+    
+    this.db.instance.prepare('DELETE FROM settings WHERE key = ?').run(key)
   }
 }

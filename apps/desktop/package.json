@@ -22,6 +22,7 @@
     "@mubble/shared": "workspace:*",
     "@mubble/storage": "workspace:*",
     "@mubble/stt-providers": "workspace:*",
+    "better-sqlite3": "^11.10.0",
     "electron-updater": "^6.3.0"
   },
   "devDependencies": {
