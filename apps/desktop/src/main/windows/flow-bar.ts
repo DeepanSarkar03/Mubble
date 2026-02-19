@@ -38,7 +38,8 @@ export function createFlowBar(): BrowserWindow {
     })
   }
 
-  flowBar.hide()
+  // Show flow bar by default on startup
+  flowBar.show()
 
   return flowBar
 }

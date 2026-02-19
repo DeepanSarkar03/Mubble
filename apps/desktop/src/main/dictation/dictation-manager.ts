@@ -18,7 +18,10 @@ import { llmRegistry } from '@mubble/llm-providers'
 import { getCleanupPrompt } from '@mubble/llm-providers'
 import type { DictationState, DictationMode } from '@mubble/shared'
 import { injectText } from '../text-injector/text-injector'
-import { AudioRecorder } from '../audio/audio-recorder'
+import { AudioRecorderNative } from '../audio/audio-recorder-native'
+import { SoundEffects } from '../audio/sound-effects'
+import { ActiveWindowDetector } from '../window-detector/active-window'
+import { NotificationManager } from '../notifications/notification-manager'
 
 interface DictationConfig {
   sttProviderId: string
@@ -45,18 +48,25 @@ export class DictationManager extends EventEmitter {
   private state: DictationState = 'idle'
   private config: DictationConfig | null = null
   private currentMode: DictationMode = 'push-to-talk'
-  private audioRecorder: AudioRecorder | null = null
+  private audioRecorder: AudioRecorderNative | null = null
   private lastTranscription: string = ''
   private history: HistoryEntry[] = []
   private historyId = 0
   private startTime: number = 0
   private mainWindow: BrowserWindow | null = null
   private flowBarWindow: BrowserWindow | null = null
+  private soundEffects: SoundEffects
+  private windowDetector: ActiveWindowDetector
+  private notifications: NotificationManager
 
   constructor(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null) {
     super()
     this.mainWindow = mainWindow
     this.flowBarWindow = flowBarWindow
+    this.soundEffects = new SoundEffects()
+    this.windowDetector = new ActiveWindowDetector()
+    this.windowDetector.startMonitoring()
+    this.notifications = new NotificationManager(mainWindow, flowBarWindow)
     this.setupIPC()
   }
 
@@ -107,7 +117,8 @@ export class DictationManager extends EventEmitter {
       // Load config
       this.config = await this.loadConfig()
       if (!this.config) {
-        this.showError('No STT provider configured. Please set up a provider in Settings.')
+        this.notifications.noProviderConfigured()
+        this.setState('error')
         return
       }
 
@@ -115,8 +126,8 @@ export class DictationManager extends EventEmitter {
       this.setState('listening')
       this.startTime = Date.now()
 
-      // Start audio recording
-      this.audioRecorder = new AudioRecorder({
+      // Start audio recording (native, no ffmpeg needed)
+      this.audioRecorder = new AudioRecorderNative({
         sampleRate: 16000,
         channels: 1
       })
@@ -129,11 +140,19 @@ export class DictationManager extends EventEmitter {
 
       await this.audioRecorder.start()
       this.setState('recording')
+      
+      // Play start sound
+      this.soundEffects.playStart()
 
       this.emit('start', { mode, timestamp: this.startTime })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start dictation:', error)
-      this.showError('Failed to start recording. Please check your microphone.')
+      this.soundEffects.playError()
+      if (error.message?.includes('microphone') || error.message?.includes('audio')) {
+        this.notifications.noMicrophoneAccess()
+      } else {
+        this.notifications.showError('Failed to start recording', error.message || 'Please check your microphone.')
+      }
       this.setState('error')
     }
   }
@@ -198,6 +217,13 @@ export class DictationManager extends EventEmitter {
       // Update analytics
       this.updateAnalytics(processedText, duration)
 
+      // Play success sound
+      this.soundEffects.playSuccess()
+
+      // Show success notification
+      const wordCount = processedText.split(/\s+/).length
+      this.notifications.dictationSuccess(wordCount)
+
       this.setState('idle')
       this.emit('result', { 
         rawText: sttResult.text, 
@@ -207,9 +233,10 @@ export class DictationManager extends EventEmitter {
       })
 
       return processedText
-    } catch (error) {
+    } catch (error: any) {
       console.error('Dictation failed:', error)
-      this.showError('Transcription failed. Please try again.')
+      this.soundEffects.playError()
+      this.notifications.dictationError(error.message || 'Transcription failed. Please try again.')
       this.setState('error')
       return null
     }
@@ -248,7 +275,13 @@ export class DictationManager extends EventEmitter {
       try {
         const llmProvider = llmRegistry.get(this.config.llmProviderId)
         if (llmProvider) {
-          const systemPrompt = getCleanupPrompt(this.config.formality || 'neutral')
+          // Detect current app and get style
+          const activeWindow = await this.windowDetector.getActiveWindow()
+          const appStyle = activeWindow 
+            ? this.windowDetector.getStyleForApp(activeWindow.processName)
+            : (this.config.formality || 'neutral')
+          
+          const systemPrompt = getCleanupPrompt(appStyle)
           const result = await llmProvider.complete(
             [{ role: 'user', content: text }],
             {
@@ -402,13 +435,7 @@ export class DictationManager extends EventEmitter {
   }
 
   private showNotification(message: string): void {
-    this.mainWindow?.webContents.send('notification', message)
-    this.flowBarWindow?.webContents.send('notification', message)
-  }
-
-  private showError(message: string): void {
-    this.mainWindow?.webContents.send('error', message)
-    this.flowBarWindow?.webContents.send('error', message)
+    this.notifications.showInfo(message)
   }
 
   getState(): DictationState {

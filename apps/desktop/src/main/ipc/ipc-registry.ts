@@ -5,6 +5,7 @@ import { llmRegistry } from '@mubble/llm-providers'
 import { Database, SettingsRepository, DictionaryRepository, SnippetsRepository, HistoryRepository, AnalyticsRepository, ApiKeysRepository } from '@mubble/storage'
 import { DictationManager } from '../dictation/dictation-manager'
 import { injectText } from '../text-injector/text-injector'
+import { NotificationManager } from '../notifications/notification-manager'
 
 // Database instance
 let db: Database | null = null
@@ -104,8 +105,17 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null, flow
     const provider = sttRegistry.get(providerId)
     if (!provider) return { valid: false, error: 'Provider not found' }
     try {
-      return await provider.validate({ apiKey })
+      const result = await provider.validate({ apiKey })
+      const notifications = new NotificationManager(mainWindow, flowBarWindow)
+      if (result.valid) {
+        notifications.providerValidated(provider.name)
+      } else {
+        notifications.providerValidationFailed(provider.name, result.error || 'Invalid API key')
+      }
+      return result
     } catch (e: any) {
+      const notifications = new NotificationManager(mainWindow, flowBarWindow)
+      notifications.providerValidationFailed(providerId, e?.message || 'Validation failed')
       return { valid: false, error: e?.message || 'Validation failed' }
     }
   })
@@ -127,8 +137,17 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null, flow
     const provider = llmRegistry.get(providerId)
     if (!provider) return { valid: false, error: 'Provider not found' }
     try {
-      return await provider.validate({ apiKey })
+      const result = await provider.validate({ apiKey })
+      const notifications = new NotificationManager(mainWindow, flowBarWindow)
+      if (result.valid) {
+        notifications.providerValidated(provider.name)
+      } else {
+        notifications.providerValidationFailed(provider.name, result.error || 'Invalid API key')
+      }
+      return result
     } catch (e: any) {
+      const notifications = new NotificationManager(mainWindow, flowBarWindow)
+      notifications.providerValidationFailed(providerId, e?.message || 'Validation failed')
       return { valid: false, error: e?.message || 'Validation failed' }
     }
   })
