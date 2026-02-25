@@ -55,6 +55,7 @@ export interface LLMProviderInfo {
   models: string[]
   defaultModel: string
   website: string
+  requiresApiKey?: boolean
 }
 
 export interface ValidationResult {

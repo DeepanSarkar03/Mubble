@@ -52,6 +52,8 @@ const api = {
       ipcRenderer.invoke(IPC.DICTATION_START, mode),
     stop: (): Promise<void> =>
       ipcRenderer.invoke(IPC.DICTATION_STOP),
+    pasteLast: (): Promise<string | null> =>
+      ipcRenderer.invoke('dictation:pasteLast'),
     onStateChanged: (cb: (state: DictationState) => void): (() => void) => {
       const handler = (_: unknown, state: DictationState) => cb(state)
       ipcRenderer.on(IPC.DICTATION_STATE_CHANGED, handler)
@@ -133,6 +135,15 @@ const api = {
       ipcRenderer.invoke(IPC.ANALYTICS_GET_DAILY, startDate, endDate),
     getSummary: (): Promise<AnalyticsSummary> =>
       ipcRenderer.invoke(IPC.ANALYTICS_GET_SUMMARY),
+  },
+
+
+  // Shortcuts
+  shortcuts: {
+    get: (): Promise<{ pushToTalk: string; handsFree: string; commandMode: string; pasteLast: string }> =>
+      ipcRenderer.invoke(IPC.SHORTCUTS_GET),
+    set: (config: Partial<{ pushToTalk: string; handsFree: string; commandMode: string; pasteLast: string }>): Promise<{ pushToTalk: string; handsFree: string; commandMode: string; pasteLast: string }> =>
+      ipcRenderer.invoke(IPC.SHORTCUTS_SET, config),
   },
 
   // Platform

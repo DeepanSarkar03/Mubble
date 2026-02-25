@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Check, ExternalLink, Loader2, Eye, EyeOff, Brain } from 'lucide-react'
+import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { Animated, StaggerContainer, Card, Button } from '../../components/ui'
 
 interface LLMProviderDef {
@@ -9,45 +9,13 @@ interface LLMProviderDef {
   website: string
   models: string[]
   defaultModel: string
+  requiresApiKey: boolean
 }
 
-const LLM_PROVIDERS: LLMProviderDef[] = [
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    description: 'GPT models for text cleanup and formatting',
-    website: 'https://platform.openai.com',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
-    defaultModel: 'gpt-4o-mini',
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    description: 'Claude models with excellent text refinement',
-    website: 'https://console.anthropic.com',
-    models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-    defaultModel: 'claude-3-5-haiku-20241022',
-  },
-  {
-    id: 'google-gemini',
-    name: 'Google Gemini',
-    description: 'Gemini models for text processing',
-    website: 'https://ai.google.dev',
-    models: ['gemini-1.5-flash', 'gemini-1.5-pro'],
-    defaultModel: 'gemini-1.5-flash',
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    description: 'Ultra-fast inference for LLMs',
-    website: 'https://groq.com',
-    models: ['llama-3.1-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-    defaultModel: 'llama-3.1-70b-versatile',
-  },
-]
-
 export default function LLMProviderSettings() {
+  const [providers, setProviders] = useState<LLMProviderDef[]>([])
   const [activeProvider, setActiveProvider] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
   const [showKey, setShowKey] = useState<Record<string, boolean>>({})
   const [validating, setValidating] = useState<string | null>(null)
@@ -56,15 +24,29 @@ export default function LLMProviderSettings() {
   >({})
 
   useEffect(() => {
-    window.mubble.settings.get('activeLLMProvider').then((v) => {
-      if (v) setActiveProvider(v)
-    })
-    LLM_PROVIDERS.forEach(async (p) => {
-      const key = await window.mubble.apiKeys.get(`llm:${p.id}`)
-      if (key) {
-        setApiKeys((prev) => ({ ...prev, [p.id]: key }))
-      }
-    })
+    const load = async () => {
+      const [providerList, savedActiveProvider, savedModel] = await Promise.all([
+        window.mubble.llm.listProviders(),
+        window.mubble.settings.get('activeLLMProvider'),
+        window.mubble.settings.get('llmModel'),
+      ])
+
+      setProviders(providerList)
+      if (savedActiveProvider) setActiveProvider(savedActiveProvider)
+      if (savedModel) setSelectedModel(savedModel)
+
+      await Promise.all(
+        providerList.map(async (provider) => {
+          if (!provider.requiresApiKey) return
+          const key = await window.mubble.apiKeys.get(`llm:${provider.id}`)
+          if (key) {
+            setApiKeys((prev) => ({ ...prev, [provider.id]: key }))
+          }
+        }),
+      )
+    }
+
+    void load()
   }, [])
 
   const handleSetApiKey = async (providerId: string, key: string) => {
@@ -94,8 +76,15 @@ export default function LLMProviderSettings() {
   }
 
   const handleSelectProvider = async (providerId: string) => {
+    const provider = providers.find((p) => p.id === providerId)
+    const nextModel = selectedModel || provider?.defaultModel || null
+
     setActiveProvider(providerId)
-    await window.mubble.settings.set('activeLLMProvider', providerId)
+    setSelectedModel(nextModel)
+    await Promise.all([
+      window.mubble.settings.set('activeLLMProvider', providerId),
+      window.mubble.settings.set('llmModel', nextModel),
+    ])
   }
 
   const handleDisableProvider = async () => {
@@ -103,19 +92,20 @@ export default function LLMProviderSettings() {
     await window.mubble.settings.set('activeLLMProvider', null)
   }
 
+  const handleChangeModel = async (model: string) => {
+    setSelectedModel(model)
+    await window.mubble.settings.set('llmModel', model)
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <Animated animation="fade-in-down" duration={200}>
         <div>
           <h2 className="text-2xl font-semibold text-white">LLM Providers</h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Configure AI providers for text cleanup
-          </p>
+          <p className="mt-1 text-sm text-neutral-500">Configure AI providers for text cleanup</p>
         </div>
       </Animated>
 
-      {/* Disable AI option */}
       <Animated animation="fade-in-up" delay={50}>
         <Card
           gradient
@@ -142,7 +132,7 @@ export default function LLMProviderSettings() {
 
       <div className="space-y-3">
         <StaggerContainer staggerDelay={40} initialDelay={100} animation="fade-in-up">
-          {LLM_PROVIDERS.map((provider) => {
+          {providers.map((provider) => {
             const isActive = activeProvider === provider.id
             const hasKey = !!apiKeys[provider.id]
             const validation = validationResults[provider.id]
@@ -154,9 +144,10 @@ export default function LLMProviderSettings() {
                 padding="lg"
                 className={`
                   transition-all duration-300
-                  ${isActive 
-                    ? 'border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.1)]' 
-                    : 'border-white/5 hover:border-white/10'
+                  ${
+                    isActive
+                      ? 'border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.1)]'
+                      : 'border-white/5 hover:border-white/10'
                   }
                 `}
               >
@@ -167,6 +158,11 @@ export default function LLMProviderSettings() {
                       {isActive && (
                         <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-medium text-violet-400">
                           Active
+                        </span>
+                      )}
+                      {!provider.requiresApiKey && (
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                          Local
                         </span>
                       )}
                     </div>
@@ -180,39 +176,41 @@ export default function LLMProviderSettings() {
                   </button>
                 </div>
 
-                {/* API Key input */}
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type={showKey[provider.id] ? 'text' : 'password'}
-                      value={apiKeys[provider.id] || ''}
-                      onChange={(e) => handleSetApiKey(provider.id, e.target.value)}
-                      placeholder="Enter API key..."
-                      className="
-                        w-full rounded-xl border border-white/10 bg-white/5 
-                        px-3 py-2 pr-8 font-mono text-xs text-white outline-none
-                        transition-all duration-200 focus:border-white/20
-                      "
-                    />
-                    <button
-                      onClick={() => setShowKey((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
+                {provider.requiresApiKey && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showKey[provider.id] ? 'text' : 'password'}
+                        value={apiKeys[provider.id] || ''}
+                        onChange={(e) => handleSetApiKey(provider.id, e.target.value)}
+                        placeholder="Enter API key..."
+                        className="
+                          w-full rounded-xl border border-white/10 bg-white/5
+                          px-3 py-2 pr-8 font-mono text-xs text-white outline-none
+                          transition-all duration-200 focus:border-white/20
+                        "
+                      />
+                      <button
+                        onClick={() =>
+                          setShowKey((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))
+                        }
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
+                      >
+                        {showKey[provider.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                      </button>
+                    </div>
+                    <Button
+                      onClick={() => handleValidate(provider.id)}
+                      disabled={!hasKey || validating === provider.id}
+                      variant="outline"
+                      size="sm"
+                      loading={validating === provider.id}
                     >
-                      {showKey[provider.id] ? <EyeOff size={12} /> : <Eye size={12} />}
-                    </button>
+                      Validate
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => handleValidate(provider.id)}
-                    disabled={!hasKey || validating === provider.id}
-                    variant="outline"
-                    size="sm"
-                    loading={validating === provider.id}
-                  >
-                    Validate
-                  </Button>
-                </div>
+                )}
 
-                {/* Validation result */}
                 {validation && (
                   <Animated animation="fade-in" duration={200}>
                     <p className={`mt-2 text-xs ${validation.valid ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -221,11 +219,10 @@ export default function LLMProviderSettings() {
                   </Animated>
                 )}
 
-                {/* Select button */}
                 <div className="mt-3 flex items-center gap-2">
                   <Button
                     onClick={() => handleSelectProvider(provider.id)}
-                    disabled={!hasKey}
+                    disabled={provider.requiresApiKey && !hasKey}
                     variant={isActive ? 'primary' : 'outline'}
                     size="sm"
                     icon={isActive ? <Check size={12} /> : undefined}
@@ -233,16 +230,19 @@ export default function LLMProviderSettings() {
                     {isActive ? 'Selected' : 'Use Provider'}
                   </Button>
 
-                  <select
-                    className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white outline-none"
-                    defaultValue={provider.defaultModel}
-                  >
-                    {provider.models.map((model) => (
-                      <option key={model} value={model} className="bg-neutral-900">
-                        {model}
-                      </option>
-                    ))}
-                  </select>
+                  {provider.models.length > 0 && (
+                    <select
+                      className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white outline-none"
+                      value={isActive ? selectedModel || provider.defaultModel : provider.defaultModel}
+                      onChange={(e) => handleChangeModel(e.target.value)}
+                    >
+                      {provider.models.map((model) => (
+                        <option key={model} value={model} className="bg-neutral-900">
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </Card>
             )

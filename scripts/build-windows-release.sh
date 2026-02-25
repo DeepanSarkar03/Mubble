@@ -1,46 +1,32 @@
 #!/bin/bash
 
-# Build Mubble Windows Release Package
-# Creates a portable executable and compresses it for distribution
+# Build Mubble Windows setup executable
+# Creates a distributable NSIS installer (.exe)
 
-set -e
+set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-echo "🔨 Building Mubble..."
+VERSION="${1:-0.1.0}"
+
+echo "🔨 Building workspace..."
 pnpm run build
 
-echo "📦 Packaging Windows portable..."
+echo "📦 Building Windows setup installer..."
 cd apps/desktop
+npm_config_cache=/tmp npx electron-builder --win nsis --publish never
 
-# Clear previous release
-rm -rf ../../release
+cd ../../release
 
-# Build the unpacked app (this creates the exe despite code signing attempt failure)
-npm_config_cache=/tmp npx electron-builder --win --dir -c.win.certificateFile="" 2>&1 | grep -E "(packaging|updating|completed|✓|⨯)" || true
-
-if [ -f "../../release/win-unpacked/Mubble.exe" ]; then
-  echo "✅ Mubble.exe created successfully"
-
-  # Create distributable zip
-  cd ../../release
-
-  if command -v zip &> /dev/null; then
-    zip -r "Mubble-${1:-0.1.0}-portable.zip" win-unpacked/
-    echo "✅ Created Mubble-${1:-0.1.0}-portable.zip"
-  elif command -v 7z &> /dev/null; then
-    7z a "Mubble-${1:-0.1.0}-portable.7z" win-unpacked/
-    echo "✅ Created Mubble-${1:-0.1.0}-portable.7z"
-  else
-    echo "⚠️  zip or 7z not found, skipping compression"
-    echo "   Portable app available at: release/win-unpacked/"
-  fi
-
-  ls -lh *.zip *.7z 2>/dev/null || true
-  cd ../..
-else
-  echo "❌ Failed to create Mubble.exe"
+SETUP_FILE=$(find . -maxdepth 1 -type f -name "*Setup*.exe" | head -n 1 || true)
+if [ -z "$SETUP_FILE" ]; then
+  echo "❌ Could not find generated setup .exe in release/"
+  ls -lah
   exit 1
 fi
 
-echo "✅ Release package ready!"
+TARGET="Mubble-${VERSION}-Windows-Setup-x64.exe"
+mv "$SETUP_FILE" "$TARGET"
+
+echo "✅ Setup installer created: release/$TARGET"
+ls -lh "$TARGET"

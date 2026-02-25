@@ -21,6 +21,13 @@ let repositories: {
 // Dictation manager instance
 let dictationManager: DictationManager | null = null
 
+export interface MainProcessControllers {
+  startDictation: (mode: 'push-to-talk' | 'hands-free' | 'command') => Promise<boolean>
+  stopDictation: () => Promise<string | null>
+  pasteLast: () => Promise<string | undefined>
+  getSettings: () => Promise<Record<string, unknown>>
+}
+
 // Initialize database and repositories
 async function initializeStorage(): Promise<void> {
   const dbPath = app.getPath('userData')
@@ -37,12 +44,26 @@ async function initializeStorage(): Promise<void> {
   }
 }
 
-export async function registerAllHandlers(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null): Promise<void> {
+export async function registerAllHandlers(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null): Promise<MainProcessControllers> {
   // Initialize storage
   await initializeStorage()
 
   // Initialize dictation manager
-  dictationManager = new DictationManager(mainWindow, flowBarWindow)
+  dictationManager = new DictationManager(mainWindow, flowBarWindow, {
+    getSettings: async () => repositories?.settings.getAll() ?? {},
+    getApiKey: async (providerId: string) => {
+      const stored = await repositories?.apiKeys.get(providerId)
+      if (!stored) return null
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          return safeStorage.decryptString(Buffer.from(stored, 'base64'))
+        } catch {
+          return stored
+        }
+      }
+      return stored
+    },
+  })
 
   // Settings handlers
   ipcMain.handle(IPC.SETTINGS_GET, async (_event, key: string) => {
@@ -220,13 +241,13 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null, flow
   ipcMain.handle(IPC.AUDIO_GET_DEVICES, async () => {
     // Return mock devices for now
     return [
-      { id: 'default', name: 'Default Microphone', isDefault: true },
-      { id: 'mic1', name: 'Microphone (Realtek)', isDefault: false },
+      { deviceId: 'default', label: 'Default Microphone', isDefault: true },
+      { deviceId: 'mic1', label: 'Microphone (Realtek)', isDefault: false },
     ]
   })
 
   ipcMain.handle(IPC.AUDIO_SET_DEVICE, async (_event, deviceId) => {
-    await repositories?.settings.set('audioDevice', deviceId)
+    await repositories?.settings.set('microphoneDeviceId', deviceId)
   })
 
   // Dictation handlers - wired to dictation manager
@@ -253,7 +274,7 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null, flow
 
   // Paste last text
   ipcMain.handle('dictation:pasteLast', async () => {
-    const lastText = dictationManager?.getHistory()[0]?.processedText
+    const lastText = dictationManager?.getLastTranscription()
     if (lastText) {
       await injectText(lastText)
     }
@@ -266,6 +287,19 @@ export async function registerAllHandlers(mainWindow: BrowserWindow | null, flow
     await shell.openExternal(url)
   })
   ipcMain.handle(IPC.PLATFORM_GET_VERSION, () => app.getVersion())
+
+  return {
+    startDictation: async (mode) => await dictationManager?.start(mode) ?? false,
+    stopDictation: async () => await dictationManager?.stop() ?? null,
+    pasteLast: async () => {
+      const lastText = dictationManager?.getLastTranscription()
+      if (lastText) {
+        await injectText(lastText)
+      }
+      return lastText
+    },
+    getSettings: async () => repositories?.settings.getAll() ?? {},
+  }
 }
 
 export function cleanupStorage(): void {

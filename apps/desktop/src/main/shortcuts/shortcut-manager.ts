@@ -17,10 +17,10 @@ interface ShortcutConfig {
 }
 
 const DEFAULT_SHORTCUTS: ShortcutConfig = {
-  pushToTalk: 'Control+Shift+Space',
-  handsFree: 'F10',
-  commandMode: 'Control+Shift+C',
-  pasteLast: 'Control+Shift+V',
+  pushToTalk: 'CommandOrControl+Shift+Space',
+  handsFree: 'CommandOrControl+Shift+H',
+  commandMode: 'CommandOrControl+Shift+K',
+  pasteLast: 'CommandOrControl+Shift+V',
 }
 
 export class ShortcutManager extends EventEmitter {
@@ -87,10 +87,10 @@ export class ShortcutManager extends EventEmitter {
 
   private setupIPC(): void {
     // Allow renderer to get current shortcuts
-    ipcMain.handle('shortcuts:get', () => this.config)
+    ipcMain.handle(IPC.SHORTCUTS_GET, () => this.config)
 
     // Allow renderer to update shortcuts
-    ipcMain.handle('shortcuts:set', (_event, newConfig: Partial<ShortcutConfig>) => {
+    ipcMain.handle(IPC.SHORTCUTS_SET, (_event, newConfig: Partial<ShortcutConfig>) => {
       this.config = { ...this.config, ...newConfig }
       this.registerShortcuts()
       return this.config

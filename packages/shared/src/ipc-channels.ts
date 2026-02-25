@@ -64,6 +64,11 @@ export const IPC = {
   API_KEY_DELETE: 'apiKey:delete',
   API_KEY_HAS: 'apiKey:has',
 
+
+  // Shortcuts
+  SHORTCUTS_GET: 'shortcuts:get',
+  SHORTCUTS_SET: 'shortcuts:set',
+
   // Window
   WINDOW_MINIMIZE: 'window:minimize',
   WINDOW_MAXIMIZE: 'window:maximize',

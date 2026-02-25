@@ -19,6 +19,8 @@ export interface Settings {
   microphoneDeviceId: string | null
   dictationSounds: boolean
   muteMusicWhileDictating: boolean
+  audioSampleRate: number
+  audioFormat: 'pcm16' | 'pcm24' | 'float32'
 
   // STT
   activeSTTProvider: string
@@ -59,6 +61,8 @@ export const DEFAULT_SETTINGS: Settings = {
   microphoneDeviceId: null,
   dictationSounds: true,
   muteMusicWhileDictating: false,
+  audioSampleRate: 48000,
+  audioFormat: 'pcm16',
 
   activeSTTProvider: 'openai-whisper',
   sttModel: null,
