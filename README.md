@@ -89,18 +89,18 @@ Mubble is an open-source desktop application that lets you dictate text into any
 
 ## Installation
 
-### Download Portable Executable (Recommended)
+### Download Setup Installer (Recommended)
 
-Download the pre-built Windows portable executable from the [Releases](https://github.com/DeepanSarkar03/Mubble/releases) page:
+Download the pre-built installer for your operating system from the [Releases](https://github.com/DeepanSarkar03/Mubble/releases) page:
 
 1. Go to [Releases](https://github.com/DeepanSarkar03/Mubble/releases)
-2. Download the latest `Mubble-v*.*.* -portable-x64.tar.gz` (or `.zip` if available)
-3. Extract the archive to a folder
-4. Run `Mubble.exe`
+2. Download one of:
+   - **Windows:** `Mubble-v*.*.*-Windows-Setup-x64.exe`
+   - **macOS:** `Mubble-v*.*.*-macOS.dmg`
+3. Run the installer and follow the setup steps
+4. Launch Mubble from Start Menu (Windows) or Applications (macOS)
 
-**That's it!** No installer needed — just extract and run.
-
-> **Note:** Windows may warn about running an unsigned executable. Click "Run anyway" or "More info" → "Run anyway" to proceed.
+> **Note:** Unsigned builds may show SmartScreen/Gatekeeper warnings. Use **More info → Run anyway** (Windows) or **Right-click → Open** (macOS) for first launch.
 
 ### Build from Source
 
@@ -118,24 +118,19 @@ pnpm run build
 # Run in development mode
 pnpm run dev
 
-# Build distributions
+# Build distribution installers
 cd apps/desktop
-npm config set cache /tmp
-npx electron-builder --win --dir   # Windows portable (creates release/win-unpacked/Mubble.exe)
-
-# Compress for distribution
-cd ../../release
-tar -czf Mubble-portable-x64.tar.gz win-unpacked/
+npx electron-builder --win nsis --publish never   # Windows Setup .exe
+npx electron-builder --mac dmg --publish never    # macOS .dmg
 ```
 
-### Running the Portable Executable
+### Running the Installed App
 
-After downloading and extracting the portable version:
+After installing the app:
 
-1. Navigate to the extracted folder
-2. Double-click `Mubble.exe` to launch the app
-3. The app will start with a system tray icon and floating Flow Bar
-4. Click the tray icon or Flow Bar to access settings
+1. Open **Mubble** from your Applications list
+2. The app starts with a system tray/menu bar icon and floating Flow Bar
+3. Click the tray icon or Flow Bar to access settings
 
 ### First Run Setup
 

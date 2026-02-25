@@ -12,7 +12,7 @@
  */
 
 import { EventEmitter } from 'events'
-import { ipcMain, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import { IPC } from '@mubble/shared'
 import { sttRegistry } from '@mubble/stt-providers'
 import { llmRegistry } from '@mubble/llm-providers'
@@ -31,8 +31,16 @@ interface DictationConfig {
   llmApiKey?: string
   enableCleanup?: boolean
   formality?: 'casual' | 'neutral' | 'formal'
+  language?: string
+  microphoneDeviceId?: string | null
+  audioSampleRate?: number
   dictionary?: Record<string, string>
   snippets?: Record<string, string>
+}
+
+interface DictationConfigLoaders {
+  getSettings: () => Promise<Record<string, any>>
+  getApiKey: (providerId: string) => Promise<string | null>
 }
 
 export class DictationManager extends EventEmitter {
@@ -47,34 +55,19 @@ export class DictationManager extends EventEmitter {
   private soundEffects: SoundEffects
   private notifications: NotificationManager
   private history: Array<{text: string, timestamp: number}> = []
+  private configLoaders: DictationConfigLoaders
 
-  constructor(mainWindow: BrowserWindow | null, flowBarWindow: BrowserWindow | null) {
+  constructor(
+    mainWindow: BrowserWindow | null,
+    flowBarWindow: BrowserWindow | null,
+    configLoaders: DictationConfigLoaders
+  ) {
     super()
     this.mainWindow = mainWindow
     this.flowBarWindow = flowBarWindow
+    this.configLoaders = configLoaders
     this.soundEffects = new SoundEffects()
     this.notifications = new NotificationManager(mainWindow, flowBarWindow)
-    this.setupIPC()
-  }
-
-  private setupIPC(): void {
-    // Handle dictation start
-    ipcMain.handle(IPC.DICTATION_START, async (_event, mode: DictationMode) => {
-      return this.start(mode)
-    })
-
-    // Handle dictation stop
-    ipcMain.handle(IPC.DICTATION_STOP, async () => {
-      return this.stop()
-    })
-
-    // Get current state
-    ipcMain.handle(IPC.DICTATION_GET_STATE, () => {
-      return {
-        state: this.state,
-        mode: this.currentMode
-      }
-    })
   }
 
   async start(mode: DictationMode = 'push-to-talk'): Promise<boolean> {
@@ -103,8 +96,9 @@ export class DictationManager extends EventEmitter {
 
       // Start audio recording
       this.audioRecorder = new AudioRecorder({
-        sampleRate: 16000,
-        channels: 1
+        sampleRate: this.config.audioSampleRate || 16000,
+        channels: 1,
+        deviceId: this.config.microphoneDeviceId || '',
       })
 
       // Listen for audio levels
@@ -181,7 +175,7 @@ export class DictationManager extends EventEmitter {
       const sttResult = await provider.transcribe(audioBuffer, 'webm', {
         apiKey: this.config.sttApiKey,
         model: this.config.sttModel,
-        language: 'en'
+        language: this.config.language || 'en'
       })
 
       if (!sttResult.text || sttResult.text.trim().length === 0) {
@@ -304,11 +298,14 @@ export class DictationManager extends EventEmitter {
   }
 
   private async loadConfig(): Promise<DictationConfig | null> {
-    // Get settings from IPC
-    const settings = await ipcMain.emit(IPC.SETTINGS_GET_ALL) || {}
+    const settings = await this.configLoaders.getSettings()
     
     const sttProviderId = settings.activeSTTProvider
-    const sttApiKey = settings.sttApiKey
+    const sttApiKey = await this.configLoaders.getApiKey(`stt:${sttProviderId}`)
+    const llmProviderId = settings.activeLLMProvider as string | null
+    const llmApiKey = llmProviderId
+      ? await this.configLoaders.getApiKey(`llm:${llmProviderId}`)
+      : null
 
     if (!sttProviderId || !sttApiKey) {
       return null
@@ -318,10 +315,13 @@ export class DictationManager extends EventEmitter {
       sttProviderId,
       sttApiKey,
       sttModel: settings.sttModel,
-      llmProviderId: settings.activeLLMProvider || undefined,
-      llmApiKey: settings.llmApiKey || undefined,
-      enableCleanup: settings.enableCleanup !== false,
-      formality: settings.formality || 'neutral',
+      llmProviderId: llmProviderId || undefined,
+      llmApiKey: llmApiKey || undefined,
+      enableCleanup: settings.enableAICleanup !== false,
+      formality: settings.defaultFormality || 'neutral',
+      language: settings.language || 'en',
+      microphoneDeviceId: settings.microphoneDeviceId || null,
+      audioSampleRate: settings.audioSampleRate || 16000,
       dictionary: settings.dictionary || {},
       snippets: settings.snippets || {}
     }

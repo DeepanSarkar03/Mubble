@@ -128,6 +128,7 @@ const STT_PROVIDERS: STTProviderDef[] = [
 
 export default function STTProviderSettings() {
   const [activeProvider, setActiveProvider] = useState('openai-whisper')
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
   const [showKey, setShowKey] = useState<Record<string, boolean>>({})
   const [validating, setValidating] = useState<string | null>(null)
@@ -138,6 +139,9 @@ export default function STTProviderSettings() {
   useEffect(() => {
     window.mubble.settings.get('activeSTTProvider').then((v) => {
       if (v) setActiveProvider(v)
+    })
+    window.mubble.settings.get('sttModel').then((v) => {
+      if (v) setSelectedModel(v)
     })
     STT_PROVIDERS.forEach(async (p) => {
       if (p.requiresApiKey) {
@@ -176,8 +180,21 @@ export default function STTProviderSettings() {
   }
 
   const handleSelectProvider = async (providerId: string) => {
+    const provider = STT_PROVIDERS.find((p) => p.id === providerId)
+    const nextModel = selectedModel || provider?.defaultModel || null
+
     setActiveProvider(providerId)
-    await window.mubble.settings.set('activeSTTProvider', providerId)
+    setSelectedModel(nextModel)
+
+    await Promise.all([
+      window.mubble.settings.set('activeSTTProvider', providerId),
+      window.mubble.settings.set('sttModel', nextModel),
+    ])
+  }
+
+  const handleModelChange = async (model: string) => {
+    setSelectedModel(model)
+    await window.mubble.settings.set('sttModel', model)
   }
 
   return (
@@ -313,7 +330,8 @@ export default function STTProviderSettings() {
                   {provider.models && provider.models.length > 1 && (
                     <select
                       className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white outline-none"
-                      defaultValue={provider.defaultModel}
+                      value={isActive ? selectedModel || provider.defaultModel : provider.defaultModel}
+                      onChange={(e) => handleModelChange(e.target.value)}
                     >
                       {provider.models.map((model) => (
                         <option key={model} value={model} className="bg-neutral-900">

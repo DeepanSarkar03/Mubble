@@ -23,9 +23,16 @@ afterSign: null
 # ── Windows ───────────────────────────────────────────────────────────────
 win:
   target:
-    - target: portable
+    - target: nsis
       arch: [x64]
   icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
 
 # ── macOS ─────────────────────────────────────────────────────────────────
 mac:

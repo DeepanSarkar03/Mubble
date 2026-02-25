@@ -8,15 +8,10 @@ on:
 permissions:
   contents: write
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared steps are extracted via a reusable workflow pattern where possible.
-# All three jobs (Windows, macOS, Linux) run in parallel on a tag push.
-# ─────────────────────────────────────────────────────────────────────────────
-
 jobs:
-  # ── Windows portable .exe ──────────────────────────────────────────────────
+  # ── Windows setup installer (.exe) ─────────────────────────────────────────
   release-windows:
-    name: Windows (portable x64)
+    name: Windows (Setup x64)
     runs-on: windows-latest
 
     steps:
@@ -38,32 +33,25 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      # Build unpacked dir (avoids NSIS code-signing symlink errors).
-      # The resulting Mubble.exe is a fully self-contained Electron binary.
-      - name: Build Electron app (Windows portable)
+      - name: Build Electron app (Windows Setup EXE)
         run: |
           cd apps/desktop
           npm config set cache C:\Users\runneradmin\.npm
-          npx electron-builder --win --dir
-          if (-not (Test-Path "..\..\release\win-unpacked\Mubble.exe")) { 
-            Write-Host "ERROR: Mubble.exe not found!"
-            exit 1 
+          npx electron-builder --win nsis --publish never
+          $setup = Get-ChildItem ..\..\release\*Setup*.exe | Select-Object -First 1
+          if (-not $setup) {
+            Write-Host "ERROR: Setup .exe not found in release directory"
+            exit 1
           }
+          Rename-Item $setup.FullName "..\..\release\Mubble-${{ github.ref_name }}-Windows-Setup-x64.exe"
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create portable archive
-        run: |
-          cd release
-          tar -czf "Mubble-${{ github.ref_name }}-Windows-portable-x64.tar.gz" win-unpacked/
-          Get-Item "Mubble-${{ github.ref_name }}-Windows-portable-x64.tar.gz" | Format-List Name, @{n='Size';e={[math]::Round($_.Length/1MB,1).ToString()+'MB'}}
-        shell: pwsh
-
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/Mubble-${{ github.ref_name }}-Windows-portable-x64.tar.gz
+          files: release/Mubble-${{ github.ref_name }}-Windows-Setup-x64.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,21 +80,12 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      # Build unsigned DMG. macOS Gatekeeper will warn about unsigned apps;
-      # users can right-click → Open to bypass the quarantine prompt.
-      # To notarise: set CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, etc. as secrets.
       - name: Build Electron app (macOS DMG)
         run: |
           cd apps/desktop
           npx electron-builder --mac dmg --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment when code-signing certs are configured:
-          # CSC_LINK: ${{ secrets.CSC_LINK }}
-          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Rename DMG with version
         run: |

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Keyboard, Command, Zap, MessageSquare, CornerDownLeft } from 'lucide-react'
-import { Animated, StaggerContainer, Card } from '../../components/ui'
+import { Keyboard, Command, Zap, CornerDownLeft } from 'lucide-react'
+import { Animated, StaggerContainer, Card, Button } from '../../components/ui'
 
 interface ShortcutConfig {
-  key: string
+  key: 'pushToTalkShortcut' | 'handsFreeShortcut' | 'commandModeShortcut' | 'pasteLastShortcut'
+  managerKey: 'pushToTalk' | 'handsFree' | 'commandMode' | 'pasteLast'
   label: string
   description: string
   icon: React.ReactNode
@@ -12,47 +13,104 @@ interface ShortcutConfig {
 const SHORTCUTS: ShortcutConfig[] = [
   {
     key: 'pushToTalkShortcut',
+    managerKey: 'pushToTalk',
     label: 'Push to Talk',
-    description: 'Hold to dictate, release to stop',
+    description: 'Start/stop dictation',
     icon: <Keyboard size={18} />,
   },
   {
     key: 'handsFreeShortcut',
+    managerKey: 'handsFree',
     label: 'Hands-Free',
     description: 'Toggle hands-free dictation mode',
     icon: <Zap size={18} />,
   },
   {
     key: 'commandModeShortcut',
+    managerKey: 'commandMode',
     label: 'Command Mode',
-    description: 'Activate command mode for text editing',
+    description: 'Start command mode dictation',
     icon: <Command size={18} />,
   },
   {
     key: 'pasteLastShortcut',
+    managerKey: 'pasteLast',
     label: 'Paste Last',
-    description: 'Paste your last dictation',
+    description: 'Paste your most recent dictation',
     icon: <CornerDownLeft size={18} />,
   },
 ]
+
+function toAccelerator(e: KeyboardEvent): string {
+  const parts: string[] = []
+  if (e.ctrlKey || e.metaKey) parts.push('CommandOrControl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+
+  const ignored = ['Control', 'Meta', 'Alt', 'Shift']
+  if (!ignored.includes(e.key)) {
+    const key = e.code.startsWith('Key')
+      ? e.code.replace('Key', '')
+      : e.code.startsWith('Digit')
+        ? e.code.replace('Digit', '')
+        : e.key.length === 1
+          ? e.key.toUpperCase()
+          : e.key
+    parts.push(key)
+  }
+
+  return parts.join('+')
+}
 
 export default function ShortcutSettings() {
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
   const [recording, setRecording] = useState<string | null>(null)
 
   useEffect(() => {
-    window.mubble.settings.getAll().then((settings) => {
+    const load = async () => {
+      const settings = await window.mubble.settings.getAll()
       const initial: Record<string, string> = {}
       SHORTCUTS.forEach((s) => {
         initial[s.key] = (settings as Record<string, string>)[s.key] || ''
       })
       setShortcuts(initial)
-    })
+    }
+
+    void load()
   }, [])
 
-  const updateShortcut = (key: string, value: string) => {
-    setShortcuts((prev) => ({ ...prev, [key]: value }))
-    window.mubble.settings.set(key as any, value)
+  useEffect(() => {
+    if (!recording) return
+
+    const onKeyDown = async (e: KeyboardEvent) => {
+      e.preventDefault()
+      const accelerator = toAccelerator(e)
+      if (!accelerator || !accelerator.includes('+')) return
+
+      const shortcut = SHORTCUTS.find((s) => s.key === recording)
+      if (!shortcut) return
+
+      const next = { ...shortcuts, [recording]: accelerator }
+      setShortcuts(next)
+      setRecording(null)
+
+      await Promise.all([
+        window.mubble.settings.set(shortcut.key as any, accelerator),
+        window.mubble.shortcuts.set({ [shortcut.managerKey]: accelerator }),
+      ])
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [recording, shortcuts])
+
+  const clearShortcut = async (shortcut: ShortcutConfig) => {
+    const next = { ...shortcuts, [shortcut.key]: '' }
+    setShortcuts(next)
+    await Promise.all([
+      window.mubble.settings.set(shortcut.key as any, ''),
+      window.mubble.shortcuts.set({ [shortcut.managerKey]: '' }),
+    ])
   }
 
   return (
@@ -60,9 +118,7 @@ export default function ShortcutSettings() {
       <Animated animation="fade-in-down" duration={200}>
         <div>
           <h2 className="text-lg font-semibold text-mubble-text">Shortcuts</h2>
-          <p className="mt-1 text-sm text-mubble-text-muted">
-            Customize keyboard shortcuts for quick dictation control
-          </p>
+          <p className="mt-1 text-sm text-mubble-text-muted">Capture and apply global shortcuts instantly.</p>
         </div>
       </Animated>
 
@@ -74,46 +130,33 @@ export default function ShortcutSettings() {
                 {shortcut.icon}
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-medium text-mubble-text">
-                  {shortcut.label}
-                </h3>
-                <p className="text-xs text-mubble-text-muted">
-                  {shortcut.description}
-                </p>
+                <h3 className="text-sm font-medium text-mubble-text">{shortcut.label}</h3>
+                <p className="text-xs text-mubble-text-muted">{shortcut.description}</p>
               </div>
-              <button
-                onClick={() => setRecording(shortcut.key)}
-                className={`
-                  flex items-center gap-2 rounded-lg border px-4 py-2 text-sm
-                  transition-all duration-200
-                  ${recording === shortcut.key
-                    ? 'border-mubble-primary bg-mubble-primary/10 text-mubble-primary animate-pulse'
-                    : 'border-mubble-border bg-mubble-bg text-mubble-text-secondary hover:border-mubble-primary/50 hover:bg-mubble-surface'
-                  }
-                `}
-              >
-                {recording === shortcut.key ? (
-                  <>Recording...</>
-                ) : (
-                  <>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRecording(shortcut.key)}
+                  className={`
+                    flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all duration-200
+                    ${recording === shortcut.key
+                      ? 'border-mubble-primary bg-mubble-primary/10 text-mubble-primary animate-pulse'
+                      : 'border-mubble-border bg-mubble-bg text-mubble-text-secondary hover:border-mubble-primary/50 hover:bg-mubble-surface'}
+                  `}
+                >
+                  {recording === shortcut.key ? 'Press keys…' : (
                     <kbd className="rounded bg-mubble-surface px-1.5 py-0.5 font-mono text-xs">
                       {shortcuts[shortcut.key] || 'Not set'}
                     </kbd>
-                  </>
-                )}
-              </button>
+                  )}
+                </button>
+                <Button size="sm" variant="ghost" onClick={() => clearShortcut(shortcut)}>
+                  Clear
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
       </StaggerContainer>
-
-      <Animated animation="fade-in-up" delay={400}>
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <p className="text-xs text-amber-400">
-            <strong>Note:</strong> Shortcut recording is not yet implemented. This will be available in a future update.
-          </p>
-        </div>
-      </Animated>
     </div>
   )
 }

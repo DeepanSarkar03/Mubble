@@ -62,7 +62,7 @@ app.whenReady().then(async () => {
   flowBarWindow = createFlowBar()
 
   // Register IPC handlers (needs windows to be created)
-  await registerAllHandlers(mainWindow, flowBarWindow)
+  const controllers = await registerAllHandlers(mainWindow, flowBarWindow)
 
   // Create system tray
   tray = createTray(mainWindow, flowBarWindow)
@@ -71,29 +71,37 @@ app.whenReady().then(async () => {
   shortcutManager = new ShortcutManager(mainWindow, flowBarWindow)
   await shortcutManager.initialize()
 
+  const settings = await controllers.getSettings()
+  shortcutManager.updateShortcuts({
+    pushToTalk: (settings.pushToTalkShortcut as string) || 'CommandOrControl+Shift+Space',
+    handsFree: (settings.handsFreeShortcut as string) || 'CommandOrControl+Shift+H',
+    commandMode: (settings.commandModeShortcut as string) || 'CommandOrControl+Shift+K',
+    pasteLast: (settings.pasteLastShortcut as string) || 'CommandOrControl+Shift+V',
+  })
+
   // Connect shortcuts to dictation manager
   shortcutManager.on('dictation:start', (mode) => {
-    mainWindow?.webContents.send('dictation:start', mode)
+    void controllers.startDictation(mode)
   })
 
   shortcutManager.on('dictation:stop', () => {
-    mainWindow?.webContents.send('dictation:stop')
+    void controllers.stopDictation()
   })
 
   shortcutManager.on('dictation:toggle', (mode, active) => {
     if (active) {
-      mainWindow?.webContents.send('dictation:start', mode)
+      void controllers.startDictation(mode)
     } else {
-      mainWindow?.webContents.send('dictation:stop')
+      void controllers.stopDictation()
     }
   })
 
   shortcutManager.on('command:activate', () => {
-    mainWindow?.webContents.send('command:activate')
+    void controllers.startDictation('command')
   })
 
   shortcutManager.on('paste:last', () => {
-    mainWindow?.webContents.send('paste:last')
+    void controllers.pasteLast()
   })
 
   // Set up auto-updater (only in production to avoid dev-mode errors)
